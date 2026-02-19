@@ -77,6 +77,15 @@
       <p class="settings-hint">Keep your fork up-to-date with the original repo.</p>
       <button id="sync-info-btn">Upstream Manager</button>
     </div>
+
+    <div class="settings-section">
+      <h3>Error Log <span id="log-badge" class="log-badge hidden">0</span></h3>
+      <p class="settings-hint">Captured <code>console.error</code> and <code>console.warn</code> messages. No need to open DevTools.</p>
+      <div id="app-log-list" class="app-log-list"><p class="app-log-empty">No errors or warnings captured yet.</p></div>
+      <div class="app-log-actions">
+        <button id="clear-log-btn">Clear log</button>
+      </div>
+    </div>
   </div>
 
   <!-- Persistent boot-error banner -->

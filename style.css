@@ -732,7 +732,87 @@ body {
 .upstream-manager .um-btn-primary { background: var(--accent) !important; color: white !important; border-color: var(--accent) !important; }
 .upstream-manager .um-btn-secondary { background: var(--bg-card); color: var(--text-primary); }
 
-/* ---- Error banner ---- */
+/* ---- Log badge on settings gear ---- */
+.log-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  background: #ef4444;
+  color: #fff;
+  border-radius: 99px;
+  margin-left: 6px;
+  vertical-align: middle;
+  line-height: 1;
+}
+.log-badge.hidden { display: none; }
+
+/* ---- In-app error log panel ---- */
+.app-log-list {
+  max-height: 280px;
+  overflow-y: auto;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 6px 0;
+  font-family: monospace;
+  font-size: 0.77rem;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+.app-log-list::-webkit-scrollbar { width: 6px; }
+.app-log-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+.app-log-list::-webkit-scrollbar-track { background: transparent; }
+.app-log-empty {
+  text-align: center;
+  color: var(--text-muted);
+  padding: 16px 12px;
+  margin: 0;
+  font-family: sans-serif;
+  font-size: 0.8rem;
+}
+.app-log-row {
+  display: grid;
+  grid-template-columns: 52px 44px 1fr;
+  gap: 6px;
+  align-items: baseline;
+  padding: 4px 10px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 40%, transparent);
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+.app-log-row:last-child { border-bottom: none; }
+.app-log-error { background: color-mix(in srgb, #ef4444 8%, transparent); }
+.app-log-warn  { background: color-mix(in srgb, #f59e0b 8%, transparent); }
+.app-log-time  { color: var(--text-muted); font-size: 0.72rem; white-space: nowrap; }
+.app-log-level {
+  font-weight: 700;
+  font-size: 0.7rem;
+  white-space: nowrap;
+}
+.app-log-error .app-log-level { color: #ef4444; }
+.app-log-warn  .app-log-level { color: #f59e0b; }
+.app-log-msg   { color: var(--text-secondary); }
+.app-log-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 6px;
+}
+.app-log-actions button {
+  padding: 4px 12px;
+  font-size: 0.78rem;
+  background: var(--bg-input);
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all var(--transition);
+}
+.app-log-actions button:hover { background: #ef4444; color: #fff; border-color: #ef4444; }
 #error-banner {
   position: fixed;
   top: 56px; /* just below top bar */

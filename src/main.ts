@@ -12,6 +12,65 @@ let selectedFiles: File[] = [];
 let currentPreviewFile: File | null = null;
 /** requestAnimationFrame id for the 3D preview render loop */
 let previewAnimFrame: number | null = null;
+
+// ── In-app console log capture ─────────────────────────────────────────────
+// Intercept console.error / console.warn ASAP so errors from module loading
+// and handler init are visible in the Settings → Error Log panel without
+// requiring the user to open browser DevTools.
+interface AppLogEntry { level: "error" | "warn"; msg: string; time: string; }
+const appLogBuffer: AppLogEntry[] = [];
+
+function _fmtArg(a: unknown): string {
+  if (a instanceof Error) return `${a.message}${a.stack ? "\n" + a.stack : ""}`;
+  if (typeof a === "object" && a !== null) { try { return JSON.stringify(a, null, 2); } catch { return String(a); } }
+  return String(a);
+}
+
+function _appendAppLog(level: AppLogEntry["level"], args: unknown[]) {
+  const msg = args.map(_fmtArg).join(" ");
+  const now = new Date();
+  const time = [now.getHours(), now.getMinutes(), now.getSeconds()]
+    .map(n => n.toString().padStart(2, "0")).join(":");
+  appLogBuffer.push({ level, msg, time });
+  // Update the badge count
+  const badge = document.getElementById("log-badge");
+  if (badge) {
+    const count = appLogBuffer.filter(e => e.level === "error").length;
+    badge.textContent = String(count);
+    badge.classList.toggle("hidden", count === 0);
+  }
+  // Live-update the panel if it is open
+  const list = document.getElementById("app-log-list");
+  if (list) _renderAppLogInto(list);
+}
+
+function _renderAppLogInto(list: HTMLElement) {
+  list.innerHTML = "";
+  if (appLogBuffer.length === 0) {
+    const empty = document.createElement("p");
+    empty.className = "app-log-empty";
+    empty.textContent = "No errors or warnings captured yet.";
+    list.appendChild(empty);
+    return;
+  }
+  for (const entry of [...appLogBuffer].reverse()) {
+    const row = document.createElement("div");
+    row.className = `app-log-row app-log-${entry.level}`;
+    const time = document.createElement("span"); time.className = "app-log-time"; time.textContent = entry.time;
+    const lbl  = document.createElement("span"); lbl.className  = "app-log-level"; lbl.textContent = entry.level.toUpperCase();
+    const msgEl = document.createElement("span"); msgEl.className = "app-log-msg"; msgEl.textContent = entry.msg;
+    row.append(time, lbl, msgEl);
+    list.appendChild(row);
+  }
+}
+
+// Replace console methods — originals are still called so DevTools still work
+const _origConsoleError = console.error.bind(console);
+const _origConsoleWarn  = console.warn.bind(console);
+console.error = (...args) => { _origConsoleError(...args); _appendAppLog("error", args); };
+console.warn  = (...args) => { _origConsoleWarn(...args);  _appendAppLog("warn",  args); };
+// ──────────────────────────────────────────────────────────────────────────────
+
 /**
  * Whether to use "simple" mode.
  * - In **simple** mode, the input/output lists are grouped by file format.
@@ -143,6 +202,11 @@ if (ui.themeToggle) {
 if (ui.settingsToggle && ui.settingsDrawer) {
   ui.settingsToggle.addEventListener("click", () => {
     ui.settingsDrawer.classList.toggle("hidden");
+    // Refresh the log panel whenever the drawer opens
+    if (!ui.settingsDrawer.classList.contains("hidden")) {
+      const list = document.getElementById("app-log-list");
+      if (list) _renderAppLogInto(list);
+    }
   });
 }
 
@@ -217,6 +281,18 @@ if (saveCustomBtn) {
 }
 
 // ──── Upstream Manager ────
+// ──── In-app log clear button ───────────────────────────────────────────────
+const clearLogBtn = document.getElementById("clear-log-btn");
+if (clearLogBtn) {
+  clearLogBtn.addEventListener("click", () => {
+    appLogBuffer.length = 0;
+    const list = document.getElementById("app-log-list");
+    if (list) _renderAppLogInto(list);
+    const badge = document.getElementById("log-badge");
+    if (badge) { badge.textContent = "0"; badge.classList.add("hidden"); }
+  });
+}
+
 if (ui.syncInfoBtn) {
   ui.syncInfoBtn.addEventListener("click", () => {
     window.showPopup(`
