@@ -868,6 +868,7 @@ body {
 .app-log-row:last-child { border-bottom: none; }
 .app-log-error { background: color-mix(in srgb, #ef4444 8%, transparent); }
 .app-log-warn  { background: color-mix(in srgb, #f59e0b 8%, transparent); }
+.app-log-info  { background: transparent; opacity: 0.8; }
 .app-log-time  { color: var(--text-muted); font-size: 0.72rem; white-space: nowrap; }
 .app-log-level {
   font-weight: 700;
@@ -876,6 +877,7 @@ body {
 }
 .app-log-error .app-log-level { color: #ef4444; }
 .app-log-warn  .app-log-level { color: #f59e0b; }
+.app-log-info  .app-log-level { color: var(--text-muted); }
 .app-log-msg   { color: var(--text-secondary); }
 .app-log-actions {
   display: flex;

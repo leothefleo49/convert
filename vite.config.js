@@ -20,6 +20,10 @@ const DEV_STATIC_MAP = {
 };
 
 export default defineConfig(({ command }) => ({
+  server: {
+    port: 5182,           // Fixed port so localStorage preferences survive restarts
+    strictPort: false,    // Fall back to next free port if 5182 is taken
+  },
   optimizeDeps: {
     exclude: [
       "@ffmpeg/ffmpeg",

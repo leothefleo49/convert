@@ -29,9 +29,11 @@ const FORMAT_PRIORITY_COST : number = 0.05; // Cost multiplier for format priori
 
 const LOG_FREQUENCY = 1000;
 /** Yield to the browser event loop every this many iterations to stay responsive */
-const YIELD_EVERY = 50;
-/** Hard cap on search iterations — avoids infinite hang when no route exists */
-const MAX_SEARCH_ITERATIONS = 80_000;
+const YIELD_EVERY = 200;
+/** Hard cap on search iterations — avoids infinite hang when no route exists.
+ *  Complex graphs with 50+ handlers can easily need >100K steps to find a route
+ *  (e.g. text/plain → audio/mpeg via espeakng → FFmpeg). */
+const MAX_SEARCH_ITERATIONS = 500_000;
 
 export interface Node {
     mime: string;

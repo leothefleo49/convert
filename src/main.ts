@@ -17,7 +17,7 @@ let previewAnimFrame: number | null = null;
 // Intercept console.error / console.warn ASAP so errors from module loading
 // and handler init are visible in the Settings → Error Log panel without
 // requiring the user to open browser DevTools.
-interface AppLogEntry { level: "error" | "warn"; msg: string; time: string; }
+interface AppLogEntry { level: "error" | "warn" | "info"; msg: string; time: string; }
 const appLogBuffer: AppLogEntry[] = [];
 
 function _fmtArg(a: unknown): string {
@@ -49,7 +49,7 @@ function _renderAppLogInto(list: HTMLElement) {
   if (appLogBuffer.length === 0) {
     const empty = document.createElement("p");
     empty.className = "app-log-empty";
-    empty.textContent = "No errors or warnings captured yet.";
+    empty.textContent = "No activity logged yet.";
     list.appendChild(empty);
     return;
   }
@@ -69,6 +69,10 @@ const _origConsoleError = console.error.bind(console);
 const _origConsoleWarn  = console.warn.bind(console);
 console.error = (...args) => { _origConsoleError(...args); _appendAppLog("error", args); };
 console.warn  = (...args) => { _origConsoleWarn(...args);  _appendAppLog("warn",  args); };
+const _origConsoleLog  = console.log.bind(console);
+console.log   = (...args) => { _origConsoleLog(...args);   _appendAppLog("info",  args); };
+/** Log a user-initiated action to the in-app activity log. */
+function logActivity(msg: string) { _appendAppLog("info", [`[action] ${msg}`]); }
 // ──────────────────────────────────────────────────────────────────────────────
 
 /**
@@ -214,6 +218,22 @@ if (ui.settingsToggle && ui.settingsDrawer) {
   });
 }
 
+// ──── Global Activity Logger ────
+// Capture every button, link, or interactive element click so the log shows
+// exactly what the user pressed and when — even if nothing happened.
+document.addEventListener("click", (e) => {
+  const target = e.target instanceof Element
+    ? e.target.closest("button, a, label, [role='button']")
+    : null;
+  if (!target) return;
+  const rawText = (target as HTMLElement).textContent?.trim().replace(/\s+/g, " ").slice(0, 100) || "";
+  const id = (target as HTMLElement).id ? ` #${(target as HTMLElement).id}` : "";
+  // Skip if this is the log panel open button to avoid an infinite loop of log entries
+  if ((target as HTMLElement).id === "settings-toggle") return;
+  _origConsoleLog(`[action] Click: "${rawText}"${id}`);
+  _appendAppLog("info", [`[action] Click: "${rawText}"${id}`]);
+}, true);
+
 // ──── Accent Color Picker ────
 const customSlot1 = document.getElementById("custom-slot-1") as HTMLButtonElement;
 const customSlot2 = document.getElementById("custom-slot-2") as HTMLButtonElement;
@@ -350,7 +370,7 @@ if (copyErrorsBtn) {
 
 // ──── Upstream Manager (GitHub API) ────────────────────────────────────────
 const FORK_REPO   = "leothefleo49/convert";
-const UPSTREAM    = "p2r3:convert:master";
+const UPSTREAM    = "p2r3:master"; // owner:branch format for GitHub compare API
 const WORKFLOW_ID = "sync-upstream.yml";
 const GH_API      = "https://api.github.com";
 
@@ -378,24 +398,27 @@ async function _umCheckStatus(panel: HTMLElement) {
   const statusEl = panel.querySelector<HTMLElement>(".um-status-body")!;
   statusEl.innerHTML = `<span class="um-loading">Checking…</span>`;
   try {
-    const r = await ghFetch(`/repos/${FORK_REPO}/compare/${FORK_REPO.split("/")[1].split(":")[0]}:master...${UPSTREAM}`);
+    const owner = FORK_REPO.split("/")[0];
+    const r = await ghFetch(`/repos/${FORK_REPO}/compare/${owner}:master...${UPSTREAM}`);
     if (r.status === 401) { statusEl.innerHTML = `<span class="um-err">Token invalid or missing. Add a token below.</span>`; return; }
     if (!r.ok) throw new Error(r.statusText);
     const data = await r.json();
     const behind = data.behind_by ?? 0;
     const ahead  = data.ahead_by  ?? 0;
     if (behind === 0) {
-      statusEl.innerHTML = `<span class="um-ok">✅ Up to date!</span>`;
+      statusEl.innerHTML = `<span class="um-ok">Up to date.</span>`;
     } else {
       const commitList = (data.commits || []).slice(0, 5)
         .map((c: any) => `<li><code>${c.sha.slice(0,7)}</code> ${c.commit.message.split("\n")[0]}</li>`)
         .join("");
       statusEl.innerHTML = `
-        <span class="um-warn">⬆️ ${behind} commit${behind>1?"s":""} behind upstream${ahead>0?` (you are ${ahead} ahead)`:""}.</span>
+        <span class="um-warn">${behind} commit${behind>1?"s":""} behind upstream${ahead>0?` (you are ${ahead} ahead)`:""}.</span>
         <ul class="um-commit-list">${commitList}${behind>5?`<li>…and ${behind-5} more</li>`:""}</ul>`;
     }
   } catch(e: any) {
-    statusEl.innerHTML = `<span class="um-err">Error: ${e.message}</span>`;
+    const errMsg = e instanceof Error ? (e.message || e.toString()) : String(e);
+    statusEl.innerHTML = `<span class="um-err">Error: ${errMsg || "Unknown error"}</span>`;
+    console.error("Upstream status check failed:", e);
   }
 }
 
@@ -415,7 +438,7 @@ async function _umLoadPRs(panel: HTMLElement) {
           <div class="um-pr-meta">by ${pr.user.login} · ${new Date(pr.created_at).toLocaleDateString()}</div>
           <div class="um-pr-actions">
             <button class="um-btn-sm um-view-pr" data-url="${pr.html_url}">View on GitHub</button>
-            <button class="um-btn-sm um-merge-pr um-btn-accent" data-pr="${pr.number}">Merge Now ✓</button>
+            <button class="um-btn-sm um-merge-pr um-btn-accent" data-pr="${pr.number}">Merge</button>
           </div>
         </div>`).join("");
       prEl.querySelectorAll<HTMLButtonElement>(".um-view-pr").forEach(btn => {
@@ -434,7 +457,7 @@ async function _umLoadPRs(panel: HTMLElement) {
               body: JSON.stringify({ merge_method: "merge", commit_title: `Merge upstream sync PR #${prNum}` })
             });
             if (mr.status === 200 || mr.status === 204) {
-              btn.textContent = "✅ Merged!";
+              btn.textContent = "Merged.";
               setTimeout(() => _umLoadPRs(panel), 1500);
             } else {
               const err = await mr.json().catch(() => ({ message: mr.statusText }));
@@ -450,7 +473,9 @@ async function _umLoadPRs(panel: HTMLElement) {
       });
     }
   } catch(e: any) {
-    prEl.innerHTML = `<span class="um-err">Error: ${e.message}</span>`;
+    const prErrMsg = e instanceof Error ? (e.message || e.toString()) : String(e);
+    prEl.innerHTML = `<span class="um-err">Error: ${prErrMsg || "Unknown error"}</span>`;
+    console.error("PR list load failed:", e);
   }
 }
 
@@ -465,7 +490,7 @@ async function _umTriggerSync(btn: HTMLButtonElement, autoMerge: boolean, panel:
       body: JSON.stringify({ ref: "master", inputs: { auto_merge: autoMerge ? "true" : "false" } })
     });
     if (r.status === 204) {
-      btn.textContent = "✅ Workflow triggered!";
+      btn.textContent = "Workflow triggered.";
       setTimeout(() => { btn.disabled = false; btn.textContent = autoMerge ? "Trigger + Auto-Merge" : "Trigger Sync Workflow"; }, 3000);
       if (autoMerge) {
         const msg = panel.querySelector<HTMLElement>(".um-trigger-msg")!;
@@ -489,11 +514,11 @@ function showUpstreamManager() {
   const savedToken = getGhToken();
   window.showPopup(`
     <div class="upstream-manager">
-      <h2>⬆️ Upstream Sync Manager</h2>
+      <h2>Upstream Sync Manager</h2>
       <p class="um-subtitle">Sync your fork with <b>p2r3/convert</b> right here — no terminal or GitHub tab needed.</p>
 
       <div class="um-section">
-        <h3>🔑 GitHub Token</h3>
+        <h3>GitHub Token</h3>
         <p class="um-hint">Needs <code>repo</code> + <code>workflow</code> scopes.
           <a href="https://github.com/settings/tokens/new?scopes=repo,workflow&description=Convert+Upstream+Sync" target="_blank" rel="noopener">Create one here ↗</a>
         </p>
@@ -508,7 +533,7 @@ function showUpstreamManager() {
 
       <div class="um-section">
         <div class="um-section-header">
-          <h3>📊 Upstream Status</h3>
+          <h3>Upstream Status</h3>
           <button id="um-check-btn" class="um-btn-sm um-btn-accent">Check now</button>
         </div>
         <div class="um-status-body"><p class="um-hint">Click "Check now" to see if you are behind upstream.</p></div>
@@ -516,14 +541,14 @@ function showUpstreamManager() {
 
       <div class="um-section">
         <div class="um-section-header">
-          <h3>📋 Open Sync PRs</h3>
+          <h3>Open Sync PRs</h3>
           <button id="um-refresh-prs" class="um-btn-sm">Refresh</button>
         </div>
         <div class="um-prs-body"><p class="um-hint">PRs created by the sync workflow appear here.</p></div>
       </div>
 
       <div class="um-section">
-        <h3>🚀 Trigger Sync</h3>
+        <h3>Trigger Sync</h3>
         <p class="um-hint">Runs the GitHub Actions workflow that fetches upstream changes and opens a PR.</p>
         <div class="um-trigger-btns">
           <button id="um-trigger-btn" class="um-btn-sm">Trigger Sync Workflow</button>
@@ -895,6 +920,7 @@ const fileSelectHandler = (event: Event) => {
   }
   files.sort((a, b) => a.name === b.name ? 0 : (a.name < b.name ? -1 : 1));
   selectedFiles = files;
+  logActivity(`File selected: ${files.map(f => f.name).join(", ")} (${files.length > 1 ? files.length + " files, " : ""}${files[0].type || files[0].name.split(".").pop()?.toUpperCase() || "unknown type"})`);
 
   // Update the file info bar (keep the drop zone intact)
   ui.fileSelectArea.classList.add("has-file");
@@ -1384,6 +1410,8 @@ ui.convertButton.onclick = async function () {
   const inputFormat = inputOption.format;
   const outputFormat = outputOption.format;
 
+  logActivity(`Convert started: ${inputFormat.format} → ${outputFormat.format} (${inputFiles.length} file${inputFiles.length !== 1 ? "s" : ""})`);
+
   try {
 
     const inputFileData = [];
@@ -1407,6 +1435,7 @@ ui.convertButton.onclick = async function () {
 
     const output = await window.tryConvertByTraversing(inputFileData, inputOption, outputOption);
     if (!output) {
+      logActivity(`No route found: ${inputOption.format.format} → ${outputOption.format.format}`);
       window.showPopup(`
         <h2>No conversion route found</h2>
         <p>No path could be found from <b>${inputOption.format.format}</b> to <b>${outputOption.format.format}</b>.</p>
@@ -1418,7 +1447,9 @@ ui.convertButton.onclick = async function () {
 
     for (const file of output.files) {
       downloadFile(file.bytes, file.name, outputFormat.mime);
+      logActivity(`Downloaded: ${file.name}`);
     }
+    logActivity(`Conversion complete: ${inputOption.format.format} → ${outputOption.format.format} via ${output.path.map(c => c.format.format).join(" → ")}`);
 
     window.showPopup(
       `<h2>Converted ${inputOption.format.format} to ${outputOption.format.format}!</h2>` +
