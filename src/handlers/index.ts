@@ -72,6 +72,9 @@ export async function loadHandlers(
   await load("imageMeta",        async () => new (await import("./imageMeta.ts")).default());
   await load("mathNotation",     async () => new (await import("./mathNotation.ts")).default());
   await load("unitConvert",      async () => new (await import("./unitConvert.ts")).default());
+  await load("gzip",             async () => new (await import("./gzip.ts")).default());
+  await load("qrcode",           async () => new (await import("./qrcode.ts")).default());
+  await load("textStats",        async () => new (await import("./textStats.ts")).default());
 
   return all;
 }

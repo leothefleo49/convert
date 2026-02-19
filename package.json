@@ -37,6 +37,7 @@
     "pako": "^2.1.0",
     "pdftoimg-js": "^0.2.5",
     "pe-library": "^2.0.1",
+    "qrcode": "^1.5.4",
     "three": "^0.182.0",
     "three-bvh-csg": "^0.0.17",
     "three-mesh-bvh": "^0.9.8",

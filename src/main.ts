@@ -213,6 +213,7 @@ if (ui.settingsToggle && ui.settingsDrawer) {
 // ──── Accent Color Picker ────
 const customSlot1 = document.getElementById("custom-slot-1") as HTMLButtonElement;
 const customSlot2 = document.getElementById("custom-slot-2") as HTMLButtonElement;
+const customSlot3 = document.getElementById("custom-slot-3") as HTMLButtonElement;
 const saveCustomBtn = document.getElementById("save-custom-color") as HTMLButtonElement;
 let nextCustomSlot = 1;
 
@@ -231,8 +232,8 @@ function restoreCustomSlots() {
   try {
     const c1 = localStorage.getItem("convert-custom-color-1");
     const c2 = localStorage.getItem("convert-custom-color-2");
+    const c3 = localStorage.getItem("convert-custom-color-3");
     if (c1 && customSlot1) {
-      customSlot1.style.background = c1 + " !important";
       customSlot1.style.setProperty("background", c1, "important");
       customSlot1.setAttribute("data-color", c1);
       customSlot1.classList.add("has-color");
@@ -241,6 +242,11 @@ function restoreCustomSlots() {
       customSlot2.style.setProperty("background", c2, "important");
       customSlot2.setAttribute("data-color", c2);
       customSlot2.classList.add("has-color");
+    }
+    if (c3 && customSlot3) {
+      customSlot3.style.setProperty("background", c3, "important");
+      customSlot3.setAttribute("data-color", c3);
+      customSlot3.classList.add("has-color");
     }
   } catch {}
 }
@@ -267,7 +273,7 @@ if (saveCustomBtn) {
   saveCustomBtn.addEventListener("click", () => {
     const color = ui.customAccent?.value;
     if (!color) return;
-    const slot = nextCustomSlot === 1 ? customSlot1 : customSlot2;
+    const slot = nextCustomSlot === 1 ? customSlot1 : nextCustomSlot === 2 ? customSlot2 : customSlot3;
     const key = `convert-custom-color-${nextCustomSlot}`;
     if (slot) {
       slot.style.setProperty("background", color, "important");
@@ -276,12 +282,25 @@ if (saveCustomBtn) {
     }
     try { localStorage.setItem(key, color); } catch {}
     applyAccent(color);
-    nextCustomSlot = nextCustomSlot === 1 ? 2 : 1;
+    nextCustomSlot = nextCustomSlot >= 3 ? 1 : nextCustomSlot + 1;
   });
 }
 
 // ──── Upstream Manager ────
 // ──── In-app log clear button ───────────────────────────────────────────────
+const copyLogBtn = document.getElementById("copy-log-btn");
+if (copyLogBtn) {
+  copyLogBtn.addEventListener("click", () => {
+    const text = appLogBuffer
+      .map(e => `[${e.time}] ${e.level.toUpperCase()} ${e.msg}`)
+      .join("\n");
+    if (!text) return;
+    navigator.clipboard.writeText(text).then(() => {
+      (copyLogBtn as HTMLButtonElement).textContent = "Copied!";
+      setTimeout(() => { (copyLogBtn as HTMLButtonElement).textContent = "Copy log"; }, 2000);
+    }).catch(() => {});
+  });
+}
 const clearLogBtn = document.getElementById("clear-log-btn");
 if (clearLogBtn) {
   clearLogBtn.addEventListener("click", () => {
@@ -412,8 +431,8 @@ if (ui.previewClose) {
 if (ui.previewBtn) {
   ui.previewBtn.addEventListener("click", () => {
     if (currentPreviewFile) {
-      stopPreviewAnimation();
-      ui.previewContent.innerHTML = "";
+      // If panel is hidden, re-show it; showFilePreview handles the flicker guard
+      ui.previewPanel.classList.remove("hidden");
       showFilePreview(currentPreviewFile);
     }
   });
@@ -529,6 +548,14 @@ async function show3DPreview(file: File) {
 
 /** Show a preview of the selected file */
 function showFilePreview(file: File) {
+  // If the panel is already open and showing the same file, just make it visible
+  if (
+    !ui.previewPanel.classList.contains("hidden") &&
+    currentPreviewFile === file
+  ) {
+    ui.previewPanel.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    return;
+  }
   currentPreviewFile = file;
   stopPreviewAnimation();
   ui.previewContent.innerHTML = "";

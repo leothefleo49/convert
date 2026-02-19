@@ -52,8 +52,12 @@
         <button class="color-dot" data-color="#E84393" style="background:#E84393" title="Pink"></button>
         <button class="color-dot" data-color="#FF6B6B" style="background:#FF6B6B" title="Red"></button>
         <button class="color-dot" data-color="#1C77FF" style="background:#1C77FF" title="Classic Blue"></button>
-        <button class="color-dot custom-slot" id="custom-slot-1" data-slot="1" title="Saved custom 1"></button>
-        <button class="color-dot custom-slot" id="custom-slot-2" data-slot="2" title="Saved custom 2"></button>
+      </div>
+      <div class="custom-slots-row">
+        <span class="custom-slots-label">Custom</span>
+        <button class="color-dot custom-slot" id="custom-slot-1" data-slot="1" title="Custom slot 1 — click Save to fill"></button>
+        <button class="color-dot custom-slot" id="custom-slot-2" data-slot="2" title="Custom slot 2 — click Save to fill"></button>
+        <button class="color-dot custom-slot" id="custom-slot-3" data-slot="3" title="Custom slot 3 — click Save to fill"></button>
       </div>
       <div id="custom-color-row">
         <input type="color" id="custom-accent" value="#6C5CE7">
@@ -83,6 +87,7 @@
       <p class="settings-hint">Captured <code>console.error</code> and <code>console.warn</code> messages. No need to open DevTools.</p>
       <div id="app-log-list" class="app-log-list"><p class="app-log-empty">No errors or warnings captured yet.</p></div>
       <div class="app-log-actions">
+        <button id="copy-log-btn">Copy log</button>
         <button id="clear-log-btn">Clear log</button>
       </div>
     </div>

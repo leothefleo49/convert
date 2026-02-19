@@ -185,7 +185,24 @@ body {
 }
 
 /* Accent color dots */
-#accent-colors { display: flex; gap: 6px; }
+#accent-colors { display: flex; gap: 6px; flex-wrap: wrap; }
+
+/* Custom accent slot row */
+.custom-slots-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+}
+.custom-slots-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted, #888);
+  white-space: nowrap;
+  padding-right: 2px;
+}
 .color-dot {
   width: 24px !important;
   height: 24px !important;
@@ -800,6 +817,7 @@ body {
 .app-log-actions {
   display: flex;
   justify-content: flex-end;
+  gap: 6px;
   margin-top: 6px;
 }
 .app-log-actions button {
@@ -812,7 +830,8 @@ body {
   cursor: pointer;
   transition: all var(--transition);
 }
-.app-log-actions button:hover { background: #ef4444; color: #fff; border-color: #ef4444; }
+#copy-log-btn:hover   { background: var(--accent); color: #fff; border-color: var(--accent); }
+#clear-log-btn:hover  { background: #ef4444; color: #fff; border-color: #ef4444; }
 
 /* ---- Global themed scrollbars ---- */
 /* Covers every scrollable element; specific rules below override as needed */
