@@ -465,7 +465,7 @@ body {
 #convert-button {
   position: fixed;
   left: 50%;
-  bottom: 24px;
+  bottom: 60px;
   transform: translateX(-50%);
   font-size: 1.1rem;
   font-weight: 600;

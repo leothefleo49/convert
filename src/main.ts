@@ -47,6 +47,7 @@ const ui = {
   fileName: document.querySelector("#file-name") as HTMLSpanElement,
   fileSize: document.querySelector("#file-size") as HTMLSpanElement,
   fileTypeBadge: document.querySelector("#file-type-badge") as HTMLSpanElement,
+  modeIndicator: document.querySelector("#mode-indicator") as HTMLSpanElement,
 };
 
 /** Current contributor filter: "all", "new", or "original" */
@@ -752,11 +753,9 @@ async function buildOptionList () {
 if (ui.modeToggleButton) {
   ui.modeToggleButton.addEventListener("click", () => {
     simpleMode = !simpleMode;
-    if (simpleMode) {
-      ui.modeToggleButton.textContent = "Advanced mode";
-    } else {
-      ui.modeToggleButton.textContent = "Simple mode";
-    }
+    const modeText = simpleMode ? "Simple mode" : "Advanced mode";
+    ui.modeToggleButton.textContent = simpleMode ? "Advanced mode" : "Simple mode"; // The button shows what you switch TO
+    if (ui.modeIndicator) ui.modeIndicator.textContent = modeText;
     buildOptionList();
   });
 }
