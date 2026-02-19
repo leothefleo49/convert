@@ -79,6 +79,9 @@
     </div>
   </div>
 
+  <!-- Persistent boot-error banner -->
+  <div id="error-banner" class="hidden" aria-live="polite" role="alert"></div>
+
   <!-- File drop zone -->
   <div id="file-area">
     <div id="drop-icon">
@@ -94,6 +97,13 @@
       <span id="file-name"></span>
       <span id="file-size"></span>
       <span id="file-type-badge"></span>
+      <button id="preview-btn" class="hidden" title="Show file preview">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+          <circle cx="12" cy="12" r="3"/>
+        </svg>
+        Preview
+      </button>
     </div>
   </div>
 

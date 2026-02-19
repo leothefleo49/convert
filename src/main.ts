@@ -8,6 +8,10 @@ let handlers: FormatHandler[] = [];
 
 /** Files currently selected for conversion */
 let selectedFiles: File[] = [];
+/** Last file shown in preview — held so re-opening is possible */
+let currentPreviewFile: File | null = null;
+/** requestAnimationFrame id for the 3D preview render loop */
+let previewAnimFrame: number | null = null;
 /**
  * Whether to use "simple" mode.
  * - In **simple** mode, the input/output lists are grouped by file format.
@@ -48,6 +52,7 @@ const ui = {
   fileSize: document.querySelector("#file-size") as HTMLSpanElement,
   fileTypeBadge: document.querySelector("#file-type-badge") as HTMLSpanElement,
   modeIndicator: document.querySelector("#mode-indicator") as HTMLSpanElement,
+  previewBtn: document.querySelector("#preview-btn") as HTMLButtonElement,
 };
 
 /** Current contributor filter: "all", "new", or "original" */
@@ -307,7 +312,19 @@ if (ui.syncInfoBtn) {
 if (ui.previewClose) {
   ui.previewClose.addEventListener("click", () => {
     ui.previewPanel.classList.add("hidden");
+    stopPreviewAnimation();
     ui.previewContent.innerHTML = "";
+  });
+}
+
+// ──── Preview Re-open Button ────
+if (ui.previewBtn) {
+  ui.previewBtn.addEventListener("click", () => {
+    if (currentPreviewFile) {
+      stopPreviewAnimation();
+      ui.previewContent.innerHTML = "";
+      showFilePreview(currentPreviewFile);
+    }
   });
 }
 
@@ -334,45 +351,222 @@ function formatFileSize(bytes: number): string {
   return (bytes / (1024 * 1024 * 1024)).toFixed(2) + " GB";
 }
 
+/** Cancel any running 3D render loop and dispose renderer */
+function stopPreviewAnimation() {
+  if (previewAnimFrame !== null) {
+    cancelAnimationFrame(previewAnimFrame);
+    previewAnimFrame = null;
+  }
+  const c = ui.previewContent.querySelector("canvas") as HTMLCanvasElement & { __threeRenderer?: { dispose(): void } };
+  if (c?.__threeRenderer) { c.__threeRenderer.dispose(); c.__threeRenderer = undefined; }
+}
+
+/** Render a 3D model in the preview panel using Three.js */
+async function show3DPreview(file: File) {
+  const container = document.createElement("div");
+  container.className = "preview-3d";
+  const canvas = document.createElement("canvas");
+  container.appendChild(canvas);
+  const label = document.createElement("p");
+  label.textContent = "Loading 3D model...";
+  label.className = "preview-3d-label";
+  container.appendChild(label);
+  ui.previewContent.appendChild(container);
+  ui.previewPanel.classList.remove("hidden");
+  try {
+    const THREE = await import("three");
+    const { OrbitControls } = await import("three/addons/controls/OrbitControls.js");
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x16162a);
+    const w = container.clientWidth || 560, h = Math.round(w * 0.6) || 340;
+    canvas.width = w; canvas.height = h;
+    const camera = new THREE.PerspectiveCamera(45, w / h, 0.001, 10000);
+    camera.position.set(0, 1, 3);
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+    renderer.setSize(w, h);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    (canvas as HTMLCanvasElement & { __threeRenderer?: { dispose(): void } }).__threeRenderer = renderer;
+    scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+    const d1 = new THREE.DirectionalLight(0xffffff, 1.2); d1.position.set(5, 8, 5); scene.add(d1);
+    const d2 = new THREE.DirectionalLight(0xaaaaff, 0.4); d2.position.set(-5, -3, -5); scene.add(d2);
+    const controls = new OrbitControls(camera, canvas);
+    controls.enableDamping = true; controls.dampingFactor = 0.05;
+    const url = URL.createObjectURL(file);
+    const ext = file.name.split(".").pop()?.toLowerCase();
+    let object: THREE.Object3D | null = null;
+    try {
+      if (ext === "glb" || ext === "gltf") {
+        const { GLTFLoader } = await import("three/addons/loaders/GLTFLoader.js");
+        const gltf = await new Promise<any>((res, rej) => new GLTFLoader().load(url, res, undefined, rej));
+        object = gltf.scene;
+      } else if (ext === "obj") {
+        const { OBJLoader } = await import("three/addons/loaders/OBJLoader.js");
+        object = await new Promise<THREE.Object3D>((res, rej) => (new OBJLoader()).load(url, res, undefined, rej));
+        object.traverse(c => { if ((c as THREE.Mesh).isMesh) (c as THREE.Mesh).material = new THREE.MeshStandardMaterial({ color: 0x888888 }); });
+      } else if (ext === "stl") {
+        const { STLLoader } = await import("three/addons/loaders/STLLoader.js");
+        const geo = await new Promise<THREE.BufferGeometry>((res, rej) => new STLLoader().load(url, res, undefined, rej));
+        object = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: 0x7799ff }));
+      } else if (ext === "ply") {
+        const { PLYLoader } = await import("three/addons/loaders/PLYLoader.js");
+        const geo = await new Promise<THREE.BufferGeometry>((res, rej) => new PLYLoader().load(url, res, undefined, rej));
+        geo.computeVertexNormals();
+        object = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: 0x7799ff, vertexColors: (geo.attributes.color !== undefined) }));
+      }
+    } finally { URL.revokeObjectURL(url); }
+    if (object) {
+      const box = new THREE.Box3().setFromObject(object);
+      const center = box.getCenter(new THREE.Vector3());
+      const size = box.getSize(new THREE.Vector3());
+      const maxDim = Math.max(size.x, size.y, size.z) || 1;
+      object.position.sub(center);
+      const scale = 2 / maxDim; object.scale.set(scale, scale, scale);
+      scene.add(object);
+      scene.add(new THREE.GridHelper(4, 10, 0x333355, 0x222244));
+      label.style.display = "none";
+      stopPreviewAnimation();
+      function animate() { previewAnimFrame = requestAnimationFrame(animate); controls.update(); renderer.render(scene, camera); }
+      animate();
+    } else {
+      label.textContent = "Cannot render this 3D format.";
+    }
+  } catch (e) {
+    label.textContent = `3D preview failed: ${e}`;
+    console.error("3D preview:", e);
+  }
+}
+
 /** Show a preview of the selected file */
 function showFilePreview(file: File) {
-  const url = URL.createObjectURL(file);
+  currentPreviewFile = file;
+  stopPreviewAnimation();
   ui.previewContent.innerHTML = "";
+  if (ui.previewBtn) ui.previewBtn.classList.remove("hidden");
 
-  if (file.type.startsWith("image/")) {
+  const ext = file.name.split(".").pop()?.toLowerCase() || "";
+
+  // 3D models
+  if (["glb", "gltf", "obj", "stl", "ply"].includes(ext)) {
+    show3DPreview(file);
+    return;
+  }
+
+  const url = URL.createObjectURL(file);
+
+  // SVG — inline for full rendering
+  if (ext === "svg" || file.type === "image/svg+xml") {
+    file.text().then(svgText => {
+      URL.revokeObjectURL(url);
+      const div = document.createElement("div"); div.className = "preview-svg";
+      div.innerHTML = svgText;
+      ui.previewContent.appendChild(div);
+      ui.previewPanel.classList.remove("hidden");
+    }); return;
+  }
+
+  // Regular images
+  if (file.type.startsWith("image/") || ["webp","bmp","ico","tiff","tif","avif"].includes(ext)) {
     const img = document.createElement("img");
-    img.src = url;
-    img.alt = file.name;
+    img.src = url; img.alt = file.name;
+    img.onload = () => URL.revokeObjectURL(url);
     ui.previewContent.appendChild(img);
-    ui.previewPanel.classList.remove("hidden");
-  } else if (file.type.startsWith("audio/")) {
+    ui.previewPanel.classList.remove("hidden"); return;
+  }
+
+  // Audio
+  if (file.type.startsWith("audio/") || ["mp3","wav","ogg","flac","m4a","aac","opus","wma","qoa"].includes(ext)) {
     const audio = document.createElement("audio");
-    audio.src = url;
-    audio.controls = true;
+    audio.src = url; audio.controls = true;
+    audio.onended = () => URL.revokeObjectURL(url);
     ui.previewContent.appendChild(audio);
-    ui.previewPanel.classList.remove("hidden");
-  } else if (file.type.startsWith("video/")) {
+    ui.previewPanel.classList.remove("hidden"); return;
+  }
+
+  // Video
+  if (file.type.startsWith("video/") || ["mp4","webm","mkv","avi","mov","wmv"].includes(ext)) {
     const video = document.createElement("video");
-    video.src = url;
-    video.controls = true;
-    video.style.maxWidth = "100%";
+    video.src = url; video.controls = true; video.style.maxWidth = "100%";
+    video.onended = () => URL.revokeObjectURL(url);
     ui.previewContent.appendChild(video);
-    ui.previewPanel.classList.remove("hidden");
-  } else if (file.type === "application/pdf") {
+    ui.previewPanel.classList.remove("hidden"); return;
+  }
+
+  // PDF
+  if (file.type === "application/pdf" || ext === "pdf") {
     const iframe = document.createElement("iframe");
-    iframe.src = url;
-    iframe.className = "pdf-frame";
+    iframe.src = url; iframe.className = "pdf-frame";
     ui.previewContent.appendChild(iframe);
-    ui.previewPanel.classList.remove("hidden");
-  } else if (file.type.startsWith("text/") || file.name.match(/\.(txt|md|json|xml|csv|tsv|yaml|yml|toml|ini|log|sh|bat|py|js|ts|html|css|sql|conf|cfg)$/i)) {
+    ui.previewPanel.classList.remove("hidden"); return;
+  }
+
+  // Fonts — render sample text
+  if (["ttf","otf","woff","woff2"].includes(ext)) {
+    const fontFace = new FontFace("_PreviewFont", `url(${url})`);
+    fontFace.load().then(loaded => {
+      document.fonts.add(loaded);
+      const div = document.createElement("div"); div.className = "preview-font";
+      div.innerHTML =
+        `<p style="font-family:'_PreviewFont';font-size:2rem">The quick brown fox jumps over the lazy dog</p>` +
+        `<p style="font-family:'_PreviewFont';font-size:1.3rem">ABCDEFGHIJKLMNOPQRSTUVWXYZ</p>` +
+        `<p style="font-family:'_PreviewFont';font-size:1.3rem">abcdefghijklmnopqrstuvwxyz</p>` +
+        `<p style="font-family:'_PreviewFont';font-size:1rem">0123456789 !@#$%^&*()-=+[]{}|;':,./<>?</p>`;
+      ui.previewContent.appendChild(div);
+      ui.previewPanel.classList.remove("hidden");
+      URL.revokeObjectURL(url);
+    }).catch(() => URL.revokeObjectURL(url));
+    return;
+  }
+
+  // CSV / TSV — render as table
+  if (["csv","tsv"].includes(ext)) {
+    const sep = ext === "tsv" ? "\t" : ",";
     file.text().then(text => {
-      const pre = document.createElement("pre");
-      pre.textContent = text.slice(0, 50000); // limit preview size
+      URL.revokeObjectURL(url);
+      const rows = text.split("\n").slice(0, 60).filter(r => r.trim());
+      const table = document.createElement("table"); table.className = "preview-csv";
+      rows.forEach((row, i) => {
+        const tr = document.createElement("tr");
+        row.split(sep).forEach(col => {
+          const cell = document.createElement(i === 0 ? "th" : "td");
+          cell.textContent = col.replace(/^"|"$/g, "");
+          tr.appendChild(cell);
+        });
+        table.appendChild(tr);
+      });
+      const w = document.createElement("div"); w.className = "preview-csv-wrapper";
+      w.appendChild(table);
+      ui.previewContent.appendChild(w);
+      ui.previewPanel.classList.remove("hidden");
+    }); return;
+  }
+
+  // JSON — pretty-print
+  if (ext === "json") {
+    file.text().then(text => {
+      URL.revokeObjectURL(url);
+      let display = text;
+      try { display = JSON.stringify(JSON.parse(text), null, 2); } catch {}
+      const pre = document.createElement("pre"); pre.textContent = display.slice(0, 100000);
       ui.previewContent.appendChild(pre);
       ui.previewPanel.classList.remove("hidden");
-    });
+    }); return;
   }
-  // else: no preview available, keep hidden
+
+  // Text files
+  if (
+    file.type.startsWith("text/") ||
+    file.name.match(/\.(txt|md|xml|yaml|yml|toml|ini|log|sh|bat|py|js|ts|html|css|sql|conf|cfg|srt|vtt|ass|lrc|sbv|env|properties)$/i)
+  ) {
+    file.text().then(text => {
+      URL.revokeObjectURL(url);
+      const pre = document.createElement("pre"); pre.textContent = text.slice(0, 100000);
+      ui.previewContent.appendChild(pre);
+      ui.previewPanel.classList.remove("hidden");
+    }); return;
+  }
+
+  // No preview available
+  URL.revokeObjectURL(url);
 }
 
 // Map clicks in the file selection area to the file input element
@@ -553,6 +747,17 @@ function dismissLoading() {
   setTimeout(() => loadingScreen.classList.add("hidden"), 500);
 }
 
+/** Show a persistent error banner below the top bar */
+function showBootError(msg: string) {
+  const banner = document.getElementById("error-banner");
+  if (!banner) return;
+  const item = document.createElement("div");
+  item.className = "error-item";
+  item.textContent = msg;
+  banner.appendChild(item);
+  banner.classList.remove("hidden");
+}
+
 /** Yield to the browser so it can repaint */
 function yieldToUI(): Promise<void> {
   return new Promise(resolve => requestAnimationFrame(() => setTimeout(resolve, 0)));
@@ -699,17 +904,35 @@ async function buildOptionList () {
   if (loadingDetail) loadingDetail.textContent = "Fetching converter engines (first load is slowest)";
   logLoading("Importing handler modules...", "");
 
-  try {
-    const mod = await import("./handlers/index.ts");
-    handlers = mod.default;
-    logLoading(`[ok] ${handlers.length} handler modules loaded`, "log-ok");
-    console.log(`[convert] ${handlers.length} handler modules imported`);
-  } catch (e) {
-    logLoading("[err] Failed to load handler modules", "log-err");
-    console.error("[convert] Handler import failed:", e);
-    dismissLoading();
+  // Import each handler individually via loadHandlers() — this prevents
+  // one broken module from wiping out the entire format list.
+  const { loadHandlers } = await import("./handlers/index.ts").then(
+    m => m as typeof import("./handlers/index.ts")
+  ).catch(() => ({ loadHandlers: undefined }));
+
+  if (!loadHandlers) {
+    const errMsg = "Failed to import handler module loader. Check the console for details.";
+    logLoading(`[err] ${errMsg}`, "log-err");
+    showBootError(errMsg);
+    // Don't dismiss — let user read loading log
+    if (loadingStatus) loadingStatus.textContent = "Load failed — see log above";
+    if (loadingBarFill) { loadingBarFill.style.background = "#ef4444"; loadingBarFill.style.width = "100%"; }
+    const btn = document.createElement("button");
+    btn.textContent = "Dismiss";
+    btn.style.cssText = "margin-top:16px;padding:8px 24px;background:var(--accent);color:white;border:none;border-radius:8px;cursor:pointer";
+    btn.onclick = () => dismissLoading();
+    document.getElementById("loading-card")?.appendChild(btn);
     return;
   }
+
+  let handlerErrors = 0;
+  handlers = await loadHandlers((msg, cls) => {
+    logLoading(msg, cls);
+    if (cls === "log-err") handlerErrors++;
+  });
+  logLoading(`[ok] ${handlers.length} handler(s) ready (${handlerErrors} failed)`, handlers.length > 0 ? "log-ok" : "log-err");
+  console.log(`[convert] ${handlers.length} handlers loaded, ${handlerErrors} failed`);
+  if (handlerErrors > 0) showBootError(`${handlerErrors} handler(s) failed to load — some formats may be missing. Check browser console for details.`);
 
   // Build conversionsFromAnyInput now that handlers are available
   conversionsFromAnyInput = handlers
@@ -740,8 +963,14 @@ async function buildOptionList () {
   // ── Phase 3: init individual handlers ──
   try {
     await buildOptionList();
+    const totalInputs = ui.inputList.querySelectorAll("button").length;
+    if (totalInputs === 0 && handlers.length > 0) {
+      showBootError("Handlers loaded but no formats were registered. Open the browser console (F12) for errors.");
+    }
     console.log("[convert] Built initial format list.");
   } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    showBootError(`Error building format list: ${msg}`);
     console.error("[convert] Error building option list:", e);
   } finally {
     // Always dismiss: first loading screen, then popup as backup

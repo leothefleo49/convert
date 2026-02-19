@@ -731,3 +731,119 @@ body {
 }
 .upstream-manager .um-btn-primary { background: var(--accent) !important; color: white !important; border-color: var(--accent) !important; }
 .upstream-manager .um-btn-secondary { background: var(--bg-card); color: var(--text-primary); }
+
+/* ---- Error banner ---- */
+#error-banner {
+  position: fixed;
+  top: 56px; /* just below top bar */
+  left: 0; right: 0;
+  z-index: 900;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 0;
+  pointer-events: none;
+}
+#error-banner.hidden { display: none; }
+#error-banner .error-item {
+  background: color-mix(in srgb, #ef4444 15%, var(--bg-card));
+  border-left: 4px solid #ef4444;
+  color: var(--text-primary);
+  font-size: 0.82rem;
+  padding: 8px 16px;
+  pointer-events: all;
+  animation: slideDown 0.25s ease;
+}
+@keyframes slideDown {
+  from { transform: translateY(-12px); opacity: 0; }
+  to   { transform: translateY(0);     opacity: 1; }
+}
+
+/* ---- Preview re-open button ---- */
+#preview-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: 8px;
+  padding: 3px 10px;
+  font-size: 0.78rem;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all var(--transition);
+  vertical-align: middle;
+}
+#preview-btn:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
+#preview-btn.hidden { display: none; }
+
+/* ---- 3D preview container ---- */
+.preview-3d {
+  width: 100%;
+  background: #16162a;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  position: relative;
+}
+.preview-3d canvas { display: block; width: 100% !important; height: auto; }
+.preview-3d-label {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  pointer-events: none;
+}
+
+/* ---- SVG preview ---- */
+.preview-svg {
+  width: 100%;
+  overflow: auto;
+  background: var(--bg-secondary);
+  border-radius: var(--radius-sm);
+  padding: 8px;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+}
+.preview-svg svg { max-width: 100%; height: auto; }
+
+/* ---- Font preview ---- */
+.preview-font {
+  padding: 16px;
+  background: var(--bg-secondary);
+  border-radius: var(--radius-sm);
+  line-height: 2;
+}
+.preview-font p { margin: 0 0 8px; color: var(--text-primary); }
+
+/* ---- CSV/TSV preview ---- */
+.preview-csv-wrapper {
+  width: 100%;
+  overflow-x: auto;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+}
+.preview-csv {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+}
+.preview-csv th {
+  background: var(--bg-input);
+  color: var(--text-secondary);
+  font-weight: 600;
+  text-align: left;
+  padding: 6px 10px;
+  border-bottom: 2px solid var(--border);
+  white-space: nowrap;
+}
+.preview-csv td {
+  padding: 5px 10px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+.preview-csv tr:last-child td { border-bottom: none; }
+.preview-csv tr:hover td { background: var(--bg-input); }
