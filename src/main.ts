@@ -1297,8 +1297,14 @@ if (ui.modeToggleButton) {
 
 async function attemptConvertPath (files: FileData[], path: ConvertPathNode[]) {
 
-  ui.popupBox.innerHTML = `<h2>Finding conversion route...</h2>
-    <p>Trying <b>${path.map(c => c.format.format).join(" -> ")}</b>...</p>`;
+  // Update only the live-status sub-element so the Cancel button is preserved
+  function setStatus(html: string) {
+    const el = document.getElementById("convert-search-status");
+    if (el) { el.innerHTML = html; }
+    else { ui.popupBox.innerHTML = `<h2>Finding conversion route…</h2><p>${html}</p>`; }
+  }
+
+  setStatus(`Trying <b>${path.map(c => c.format.format).join(" → ")}</b>…`);
 
   for (let i = 0; i < path.length - 1; i ++) {
     const handler = path[i + 1].handler;
@@ -1324,8 +1330,7 @@ async function attemptConvertPath (files: FileData[], path: ConvertPathNode[]) {
     } catch (e) {
       console.log(path.map(c => c.format.format));
       console.error(handler.name, `${path[i].format.format} -> ${path[i + 1].format.format}`, e);
-      ui.popupBox.innerHTML = `<h2>Finding conversion route...</h2>
-        <p>Looking for a valid path...</p>`;
+      setStatus(`Path <b>${path.map(c => c.format.format).join(" → ")}</b> failed — trying another route…`);
       await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
       return null;
     }
@@ -1392,14 +1397,22 @@ ui.convertButton.onclick = async function () {
       inputFileData.push({ name: inputFile.name, bytes: inputBytes });
     }
 
-    window.showPopup("<h2>Finding conversion route...</h2>");
+    window.showPopup(`
+      <h2>Finding conversion route…</h2>
+      <p id="convert-search-status" style="min-height:1.4em">Searching all possible paths…</p>
+      <button class="cancel-search-btn" onclick="window.traversionGraph.abortSearch(); window.hidePopup();" style="margin-top:8px">Cancel</button>
+    `);
     // Delay for a bit to give the browser time to render
     await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
 
     const output = await window.tryConvertByTraversing(inputFileData, inputOption, outputOption);
     if (!output) {
-      window.hidePopup();
-      alert("Failed to find conversion route.");
+      window.showPopup(`
+        <h2>No conversion route found</h2>
+        <p>No path could be found from <b>${inputOption.format.format}</b> to <b>${outputOption.format.format}</b>.</p>
+        <p style="font-size:0.85rem;color:var(--text-muted)">This conversion may not be supported yet, or a required handler failed to load. Check Settings → Error Log for details.</p>
+        <button onclick="window.hidePopup()" style="margin-top:8px">OK</button>
+      `);
       return;
     }
 

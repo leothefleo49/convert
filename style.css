@@ -690,6 +690,15 @@ body {
   transition: all var(--transition);
 }
 #popup button:not(.popup-close):hover { opacity: 0.85; }
+/* Cancel button inside the route-search popup */
+.cancel-search-btn {
+  background: var(--bg-input) !important;
+  color: var(--text-secondary) !important;
+  border: 1px solid var(--border) !important;
+  display: block;
+  margin: 8px auto 0;
+}
+.cancel-search-btn:hover { background: #ef4444 !important; color: #fff !important; border-color: #ef4444 !important; }
 #popup pre {
   text-align: left;
   background: var(--bg-input);

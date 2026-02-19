@@ -28,6 +28,10 @@ const HANDLER_PRIORITY_COST : number = 0.2; // Cost multiplier for handler prior
 const FORMAT_PRIORITY_COST : number = 0.05; // Cost multiplier for format priority. Higher values will make the algorithm prefer formats with higher priority more strongly.
 
 const LOG_FREQUENCY = 1000;
+/** Yield to the browser event loop every this many iterations to stay responsive */
+const YIELD_EVERY = 50;
+/** Hard cap on search iterations — avoids infinite hang when no route exists */
+const MAX_SEARCH_ITERATIONS = 80_000;
 
 export interface Node {
     mime: string;
@@ -49,6 +53,13 @@ export class TraversionGraph {
     private handlers: FormatHandler[] = [];
     private nodes: Node[] = [];
     private edges: Edge[] = [];
+    /** Set to true by abortSearch() to cancel an in-progress searchPath call */
+    private _searchAborted: boolean = false;
+
+    /** Call this to cancel an in-progress searchPath (e.g. user clicked Cancel) */
+    public abortSearch(): void {
+        this._searchAborted = true;
+    }
     private categoryChangeCosts: CategoryChangeCost[] = [
         {from: "image", to: "video", cost: 0.2}, // Almost lossless
         {from: "video", to: "image", cost: 0.4}, // Potentially lossy and more complex
@@ -286,8 +297,24 @@ export class TraversionGraph {
         console.log(`Starting path search from ${from.format.mime}(${from.handler?.name}) to ${to.format.mime}(${to.handler?.name}) (simple mode: ${simpleMode})`);
         let iterations = 0;
         let pathsFound = 0;
+        this._searchAborted = false; // reset from any previous call
         while (queue.size() > 0) {
             iterations++;
+
+            // Keep the browser responsive: yield to the event loop every YIELD_EVERY steps
+            if (iterations % YIELD_EVERY === 0) {
+                await new Promise(r => setTimeout(r, 0));
+            }
+            // Hard stop to prevent infinite hang when no route exists
+            if (iterations > MAX_SEARCH_ITERATIONS) {
+                console.warn(`searchPath exceeded ${MAX_SEARCH_ITERATIONS} iterations — aborting to prevent hang.`);
+                return;
+            }
+            // User-requested abort (Cancel button)
+            if (this._searchAborted) {
+                console.log(`Path search aborted by user after ${iterations} iterations.`);
+                return;
+            }
             // Get the node with the lowest cost
             let current = queue.poll()!;
             const indexInVisited = visited.indexOf(current.index);
@@ -354,6 +381,8 @@ export class TraversionGraph {
             });
             if (iterations % LOG_FREQUENCY === 0) {
                 console.log(`Still searching... Iterations: ${iterations}, Paths found: ${pathsFound}, Queue length: ${queue.size()}`);
+                const statusEl = document.getElementById("convert-search-status");
+                if (statusEl) statusEl.textContent = `Searching… (${iterations.toLocaleString()} steps explored)`;
             }
         }
         console.log(`Path search completed. Total iterations: ${iterations}, Total paths found: ${pathsFound}`);

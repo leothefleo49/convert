@@ -29,6 +29,7 @@ export async function loadHandlers(
   await load("htmlEmbed",        async () => new (await import("./htmlEmbed.ts")).default());
   await load("FFmpeg",           async () => new (await import("./FFmpeg.ts")).default());
   await load("pdftoimg",         async () => new (await import("./pdftoimg.ts")).default());
+  await load("pdftextract",      async () => new (await import("./pdftextract.ts")).default());
   await load("ImageMagick",      async () => new (await import("./ImageMagick.ts")).default());
   await load("rename",           async () => { const m = await import("./rename.ts"); return [m.renameZipHandler, m.renameTxtHandler]; });
   await load("envelope",         async () => new (await import("./envelope.ts")).default());
