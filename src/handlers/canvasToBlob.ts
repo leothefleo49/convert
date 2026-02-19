@@ -41,11 +41,16 @@ class canvasToBlobHandler implements FormatHandler {
 
       if (inputFormat.mime === "text/plain") {
 
-        const font = "48px sans-serif";
-        const fontSize = parseInt(font);
-        const footerPadding = fontSize * 0.5;
+        const font = "16px monospace";
+        const fontSize = 16;
+        const lineHeight = Math.ceil(fontSize * 1.5);
+        const padX = 16;  // horizontal padding so text isn't clipped at edges
+        const padY = 12;  // top padding
         const string = new TextDecoder().decode(inputFile.bytes);
         const lines = string.split("\n");
+
+        // Must set font on ctx BEFORE measureText or measurements use the default 10px font
+        this.#ctx.font = font;
 
         let maxLineWidth = 0;
         for (const line of lines) {
@@ -53,22 +58,20 @@ class canvasToBlobHandler implements FormatHandler {
           if (width > maxLineWidth) maxLineWidth = width;
         }
 
-        this.#ctx.font = font;
-        this.#canvas.width = maxLineWidth;
-        this.#canvas.height = Math.floor(fontSize * lines.length + footerPadding);
+        this.#canvas.width  = Math.ceil(maxLineWidth) + padX * 2;
+        this.#canvas.height = lineHeight * lines.length + padY * 2;
 
         if (outputFormat.category === "image" || outputFormat.category?.includes("image")) {
           this.#ctx.fillStyle = "white";
           this.#ctx.fillRect(0, 0, this.#canvas.width, this.#canvas.height);
         }
-        this.#ctx.fillStyle = "black";
-        this.#ctx.strokeStyle = "white";
+        // Re-set font after canvas resize (resizing resets ctx state)
         this.#ctx.font = font;
+        this.#ctx.fillStyle = "black";
+        this.#ctx.textBaseline = "top";
 
-        for (let i = 0; i < lines.length; i ++) {
-          const line = lines[i];
-          this.#ctx.fillText(line, 0, fontSize * (i + 1));
-          this.#ctx.strokeText(line, 0, fontSize * (i + 1));
+        for (let i = 0; i < lines.length; i++) {
+          this.#ctx.fillText(lines[i], padX, padY + i * lineHeight);
         }
 
       } else {

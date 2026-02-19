@@ -293,6 +293,21 @@ if (clearLogBtn) {
   });
 }
 
+// ──── Error banner "Copy errors" button ─────────────────────────────────────
+const copyErrorsBtn = document.getElementById("copy-errors-btn");
+if (copyErrorsBtn) {
+  copyErrorsBtn.addEventListener("click", () => {
+    const items = document.querySelectorAll("#error-banner .error-item-text");
+    const text = Array.from(items).map(el => el.textContent).join("\n");
+    if (text) {
+      navigator.clipboard.writeText(text).then(() => {
+        copyErrorsBtn.textContent = "Copied!";
+        setTimeout(() => { copyErrorsBtn.textContent = "Copy errors"; }, 2000);
+      });
+    }
+  });
+}
+
 if (ui.syncInfoBtn) {
   ui.syncInfoBtn.addEventListener("click", () => {
     window.showPopup(`
@@ -645,10 +660,13 @@ function showFilePreview(file: File) {
   URL.revokeObjectURL(url);
 }
 
-// Map clicks in the file selection area to the file input element
-ui.fileSelectArea.onclick = () => {
+// Map clicks in the file selection area to the file input element.
+// If a <button> (or any child of one, e.g. the SVG icon inside #preview-btn)
+// was clicked, let that button handle its own event — don't also open the file picker.
+ui.fileSelectArea.addEventListener("click", (e) => {
+  if (e.target instanceof Element && e.target.closest("button")) return;
   ui.fileInput.click();
-};
+});
 
 /**
  * Validates and stores user selected files. Works for both manual
@@ -823,13 +841,24 @@ function dismissLoading() {
   setTimeout(() => loadingScreen.classList.add("hidden"), 500);
 }
 
-/** Show a persistent error banner below the top bar */
+/** Show a persistent error banner below the top bar with a per-item dismiss button */
 function showBootError(msg: string) {
   const banner = document.getElementById("error-banner");
   if (!banner) return;
   const item = document.createElement("div");
   item.className = "error-item";
-  item.textContent = msg;
+  const text = document.createElement("span");
+  text.className = "error-item-text";
+  text.textContent = msg;
+  const close = document.createElement("button");
+  close.className = "error-item-close";
+  close.textContent = "\u00d7";
+  close.title = "Dismiss";
+  close.onclick = () => {
+    item.remove();
+    if (!banner.querySelector(".error-item")) banner.classList.add("hidden");
+  };
+  item.append(text, close);
   banner.appendChild(item);
   banner.classList.remove("hidden");
 }
@@ -851,14 +880,18 @@ async function buildOptionList () {
   for (const handler of handlers) {
     loadedCount++;
 
+    // Always update progress bar, even for fast/static handlers
+    updateLoading(loadedCount, totalHandlers, handler.name);
+
     if (!window.supportedFormatCache.has(handler.name)) {
       // Many handlers set supportedFormats in their constructor — no init needed
       if (handler.supportedFormats && handler.supportedFormats.length > 0) {
         window.supportedFormatCache.set(handler.name, handler.supportedFormats);
         logLoading(`[ok] ${handler.name} (ready)`, "log-ok");
+        // Yield every 5 static handlers so the bar actually repaints
+        if (loadedCount % 5 === 0) await yieldToUI();
       } else {
         // Handler needs init() to populate its format list (e.g. FFmpeg, ImageMagick)
-        updateLoading(loadedCount, totalHandlers, handler.name);
         await yieldToUI();
 
         try {
@@ -1008,7 +1041,7 @@ async function buildOptionList () {
   });
   logLoading(`[ok] ${handlers.length} handler(s) ready (${handlerErrors} failed)`, handlers.length > 0 ? "log-ok" : "log-err");
   console.log(`[convert] ${handlers.length} handlers loaded, ${handlerErrors} failed`);
-  if (handlerErrors > 0) showBootError(`${handlerErrors} handler(s) failed to load — some formats may be missing. Check browser console for details.`);
+  if (handlerErrors > 0) showBootError(`${handlerErrors} handler(s) failed to load — some formats may be missing. Open Settings → Error Log for details.`);
 
   // Build conversionsFromAnyInput now that handlers are available
   conversionsFromAnyInput = handlers
@@ -1041,7 +1074,7 @@ async function buildOptionList () {
     await buildOptionList();
     const totalInputs = ui.inputList.querySelectorAll("button").length;
     if (totalInputs === 0 && handlers.length > 0) {
-      showBootError("Handlers loaded but no formats were registered. Open the browser console (F12) for errors.");
+      showBootError("Handlers loaded but no formats were registered. Open Settings → Error Log for details.");
     }
     console.log("[convert] Built initial format list.");
   } catch (e) {

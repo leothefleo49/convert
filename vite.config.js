@@ -7,11 +7,34 @@ export default defineConfig(({ command }) => ({
     exclude: [
       "@ffmpeg/ffmpeg",
       "@sqlite.org/sqlite-wasm",
+    ],
+    include: [
+      "buffer"
     ]
+  },
+  resolve: {
+    alias: {
+      // Allow handlers to `import { Buffer } from 'buffer'` in the browser
+      buffer: "buffer/"
+    }
   },
   // Use "/" for local dev, "/convert/" for production build
   base: command === "serve" ? "/" : "/convert/",
   plugins: [
+    // In dev mode the wasm/js assets are served at root (/) not at /convert/,
+    // but the handler source files hard-code /convert/wasm and /convert/js.
+    // This middleware rewrites those prefixes so dev requests succeed.
+    {
+      name: "dev-base-rewrite",
+      configureServer(server) {
+        server.middlewares.use((req, _res, next) => {
+          if (req.url?.startsWith("/convert/")) {
+            req.url = "/" + req.url.slice("/convert/".length);
+          }
+          next();
+        });
+      }
+    },
     viteStaticCopy({
       targets: [
         {
