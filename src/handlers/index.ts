@@ -56,7 +56,7 @@ export async function loadHandlers(
   await load("libopenmpt",       async () => new (await import("./libopenmpt.ts")).default());
   await load("lzh",              async () => new (await import("./lzh.ts")).default());
   await load("pandoc",           async () => new (await import("./pandoc.ts")).default());
-  await load("espeakng",         async () => new (await import("./espeakng.js" as string)).default());
+  await load("espeakng",         async () => new (await import("./espeakng.ts" as string)).default());
   await load("texttoshell",      async () => new (await import("./texttoshell.ts")).default());
   await load("batch",            async () => new (await import("./batch.ts")).default());
   await load("bsor",             async () => new (await import("./bsor.ts")).default());
@@ -75,6 +75,8 @@ export async function loadHandlers(
   await load("unitConvert",      async () => new (await import("./unitConvert.ts")).default());
   await load("gzip",             async () => new (await import("./gzip.ts")).default());
   await load("qrcode",           async () => new (await import("./qrcode.ts")).default());
+  await load("textToPdf",        async () => new (await import("./textToPdf.ts")).default());
+  await load("textFormats",      async () => new (await import("./textFormats.ts")).default());
   await load("textStats",        async () => new (await import("./textStats.ts")).default());
 
   return all;
