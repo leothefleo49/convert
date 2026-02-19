@@ -1,7 +1,10 @@
 import type { FileFormat, FileData, FormatHandler, ConvertPathNode } from "./FormatHandler.js";
 import normalizeMimeType from "./normalizeMimeType.js";
-import handlers from "./handlers";
 import { TraversionGraph } from "./TraversionGraph.js";
+
+// Handlers are loaded DYNAMICALLY so the loading screen JS can run immediately.
+// The static import would block ALL code until every handler module resolves.
+let handlers: FormatHandler[] = [];
 
 /** Files currently selected for conversion */
 let selectedFiles: File[] = [];
@@ -13,12 +16,8 @@ let selectedFiles: File[] = [];
  */
 let simpleMode: boolean = true;
 
-/** Handlers that support conversion from any formats. */
-const conversionsFromAnyInput: ConvertPathNode[] = handlers
-.filter(h => h.supportAnyInput && h.supportedFormats)
-.flatMap(h => h.supportedFormats!
-  .filter(f => f.to)
-  .map(f => ({ handler: h, format: f})))
+/** Handlers that support conversion from any formats (populated after handlers load). */
+let conversionsFromAnyInput: ConvertPathNode[] = [];
 
 const ui = {
   fileInput: document.querySelector("#file-input") as HTMLInputElement,
@@ -484,8 +483,12 @@ const loadingLog = document.getElementById("loading-log");
 
 function updateLoading(current: number, total: number, handlerName: string) {
   const pct = Math.round((current / total) * 100);
-  if (loadingStatus) loadingStatus.textContent = `Loading tools... ${pct}%`;
-  if (loadingBarFill) loadingBarFill.style.width = pct + "%";
+  if (loadingStatus) loadingStatus.textContent = `Initializing tools... ${pct}%`;
+  // Switch from indeterminate shimmer to real progress on first call
+  if (loadingBarFill) {
+    loadingBarFill.classList.add("determinate");
+    loadingBarFill.style.width = pct + "%";
+  }
   if (loadingDetail) loadingDetail.textContent = handlerName;
 }
 
@@ -638,21 +641,51 @@ async function buildOptionList () {
 
 (async () => {
   console.log("[convert] Starting initialization...");
+
+  // ── Phase 1: dynamically import handler modules ──
+  if (loadingStatus) loadingStatus.textContent = "Loading modules...";
+  if (loadingDetail) loadingDetail.textContent = "Fetching converter engines (first load is slowest)";
+  logLoading("Importing handler modules...", "");
+
+  try {
+    const mod = await import("./handlers/index.ts");
+    handlers = mod.default;
+    logLoading(`✓ ${handlers.length} handler modules loaded`, "log-ok");
+    console.log(`[convert] ${handlers.length} handler modules imported`);
+  } catch (e) {
+    logLoading("✗ Failed to load handler modules", "log-err");
+    console.error("[convert] Handler import failed:", e);
+    dismissLoading();
+    return;
+  }
+
+  // Build conversionsFromAnyInput now that handlers are available
+  conversionsFromAnyInput = handlers
+    .filter(h => h.supportAnyInput && h.supportedFormats)
+    .flatMap(h => h.supportedFormats!
+      .filter(f => f.to)
+      .map(f => ({ handler: h, format: f })));
+
+  // ── Phase 2: load format cache ──
   try {
     const resp = await fetch("cache.json");
     if (resp.ok) {
       const cacheJSON = await resp.json();
       window.supportedFormatCache = new Map(cacheJSON);
+      logLoading("✓ Format cache loaded from cache.json", "log-ok");
       console.log("[convert] Loaded format cache from cache.json");
     } else {
       throw new Error("No cache.json");
     }
   } catch {
+    logLoading("⊘ No cache — will init handlers individually", "log-skip");
     console.warn(
       "Missing supported format precache.\n\n" +
       "Consider saving the output of printSupportedFormatCache() to cache.json."
     );
   }
+
+  // ── Phase 3: init individual handlers ──
   try {
     await buildOptionList();
     console.log("[convert] Built initial format list.");

@@ -510,10 +510,19 @@ body {
 }
 #loading-bar-fill {
   height: 100%;
-  width: 0%;
+  width: 25%;
   background: var(--accent, #6C5CE7);
   border-radius: 3px;
   transition: width 0.3s ease;
+  animation: indeterminate 1.4s ease-in-out infinite;
+}
+#loading-bar-fill.determinate {
+  animation: none;
+}
+@keyframes indeterminate {
+  0%   { transform: translateX(-100%); opacity: 0.7; }
+  50%  { transform: translateX(150%); opacity: 1; }
+  100% { transform: translateX(400%); opacity: 0.7; }
 }
 #loading-detail {
   color: var(--text-muted);
