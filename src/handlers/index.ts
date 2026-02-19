@@ -36,6 +36,14 @@ import espeakngHandler from "./espeakng.js"
 import textToShellHandler from "./texttoshell.ts";
 import batchHandler from "./batch.ts";
 import bsorHandler from "./bsor.ts";
+import renameGameZipHandler from "./renameGameZip.ts";
+import subtitleHandler from "./subtitle.ts";
+import configFormatHandler from "./configFormat.ts";
+import encodingHandler from "./encoding.ts";
+import textCipherHandler from "./textCipher.ts";
+import codeTranspileHandler from "./codeTranspile.ts";
+import threejs3DHandler from "./threejs3d.ts";
+import colorConvertHandler from "./colorConvert.ts";
 
 const handlers: FormatHandler[] = [];
 try { handlers.push(new svgTraceHandler()) } catch (_) { };
@@ -76,5 +84,13 @@ try { handlers.push(new espeakngHandler()) } catch (_) { };
 try { handlers.push(new textToShellHandler()) } catch (_) { };
 try { handlers.push(new batchHandler()) } catch (_) { };
 try { handlers.push(new bsorHandler()) } catch (_) { };
+try { handlers.push(new renameGameZipHandler()) } catch (_) { };
+try { handlers.push(new subtitleHandler()) } catch (_) { };
+try { handlers.push(new configFormatHandler()) } catch (_) { };
+try { handlers.push(new encodingHandler()) } catch (_) { };
+try { handlers.push(new textCipherHandler()) } catch (_) { };
+try { handlers.push(new codeTranspileHandler()) } catch (_) { };
+try { handlers.push(new threejs3DHandler()) } catch (_) { };
+try { handlers.push(new colorConvertHandler()) } catch (_) { };
 
 export default handlers;
