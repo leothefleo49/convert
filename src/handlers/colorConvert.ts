@@ -197,6 +197,7 @@ function mkFmt(name: string, format: string, ext: string): FileFormat {
 
 class colorConvertHandler implements FormatHandler {
   public name = "colorConvert";
+  public contributor = "leothefleo49";
   public ready = true;
 
   public supportedFormats: FileFormat[] = [

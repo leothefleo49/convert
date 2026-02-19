@@ -8,6 +8,7 @@ import type { FileData, FileFormat, FormatHandler } from "../FormatHandler.ts";
  */
 class encodingHandler implements FormatHandler {
   public name = "encoding";
+  public contributor = "leothefleo49";
   public ready = true;
 
   public supportedFormats: FileFormat[] = [

@@ -30,11 +30,16 @@ const ui = {
   inputSearch: document.querySelector("#search-from") as HTMLInputElement,
   outputSearch: document.querySelector("#search-to") as HTMLInputElement,
   popupBox: document.querySelector("#popup") as HTMLDivElement,
-  popupBackground: document.querySelector("#popup-bg") as HTMLDivElement
+  popupBackground: document.querySelector("#popup-bg") as HTMLDivElement,
+  filterButtons: document.querySelectorAll(".filter-btn") as NodeListOf<HTMLButtonElement>
 };
 
+/** Current contributor filter: "all", "new", or "original" */
+let contributorFilter: string = "all";
+
 /**
- * Filters a list of butttons to exclude those not matching a substring.
+ * Filters a list of butttons to exclude those not matching a substring
+ * and/or contributor filter.
  * @param list Button list (div) to filter.
  * @param string Substring for which to search.
  */
@@ -47,8 +52,16 @@ const filterButtonList = (list: HTMLDivElement, string: string) => {
       const format = allOptions[parseInt(formatIndex)];
       hasExtension = format?.format.extension.toLowerCase().includes(string);
     }
-    const hasText = button.textContent.toLowerCase().includes(string);
-    if (!hasExtension && !hasText) {
+    const hasText = button.textContent?.toLowerCase().includes(string);
+    const matchesSearch = hasExtension || hasText;
+
+    // Contributor filter
+    const isNew = button.getAttribute("data-contributor") !== null;
+    let matchesContributor = true;
+    if (contributorFilter === "new") matchesContributor = isNew;
+    else if (contributorFilter === "original") matchesContributor = !isNew;
+
+    if (!matchesSearch || !matchesContributor) {
       button.style.display = "none";
     } else {
       button.style.display = "";
@@ -74,6 +87,17 @@ const searchHandler = (event: Event) => {
 // Assign search handler to both search boxes
 ui.inputSearch.oninput = searchHandler;
 ui.outputSearch.oninput = searchHandler;
+
+// Contributor filter buttons
+ui.filterButtons.forEach(btn => {
+  btn.addEventListener("click", () => {
+    ui.filterButtons.forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    contributorFilter = btn.getAttribute("data-filter") || "all";
+    filterButtonList(ui.inputList, ui.inputSearch.value.toLowerCase());
+    filterButtonList(ui.outputList, ui.outputSearch.value.toLowerCase());
+  });
+});
 
 // Map clicks in the file selection area to the file input element
 ui.fileSelectArea.onclick = () => {
@@ -237,6 +261,11 @@ async function buildOptionList () {
       newOption.setAttribute("format-index", (allOptions.length - 1).toString());
       newOption.setAttribute("mime-type", format.mime);
 
+      // Tag buttons from contributed handlers
+      if (handler.contributor) {
+        newOption.setAttribute("data-contributor", handler.contributor);
+      }
+
       const formatDescriptor = format.format.toUpperCase();
       if (simpleMode) {
         // Hide any handler-specific information in simple mode
@@ -248,6 +277,14 @@ async function buildOptionList () {
         newOption.appendChild(document.createTextNode(`${formatDescriptor} - ${cleanName} (${format.mime})`));
       } else {
         newOption.appendChild(document.createTextNode(`${formatDescriptor} - ${format.name} (${format.mime}) ${handler.name}`));
+      }
+
+      // Add "NEW" badge for contributed formats
+      if (handler.contributor) {
+        const badge = document.createElement("span");
+        badge.className = "new-badge";
+        badge.textContent = "NEW";
+        newOption.appendChild(badge);
       }
 
       const clickHandler = (event: Event) => {

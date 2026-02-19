@@ -54,6 +54,7 @@ for (const [k, v] of Object.entries(BRAILLE_MAP)) REVERSE_BRAILLE[v] = k;
 
 class textCipherHandler implements FormatHandler {
   public name = "textCipher";
+  public contributor = "leothefleo49";
   public ready = true;
 
   public supportedFormats: FileFormat[] = [

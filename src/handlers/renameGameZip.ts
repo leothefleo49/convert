@@ -7,6 +7,7 @@ import type { FileData, FileFormat, FormatHandler } from "../FormatHandler.ts";
  */
 class renameGameZipHandler implements FormatHandler {
   public name = "renameGameZip";
+  public contributor = "leothefleo49";
   public ready = true;
 
   public supportedFormats: FileFormat[] = [

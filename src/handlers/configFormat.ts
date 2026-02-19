@@ -7,6 +7,7 @@ import type { FileData, FileFormat, FormatHandler } from "../FormatHandler.ts";
  */
 class configFormatHandler implements FormatHandler {
   public name = "configFormat";
+  public contributor = "leothefleo49";
   public ready = true;
 
   public supportedFormats: FileFormat[] = [

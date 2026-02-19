@@ -2,14 +2,15 @@ import { defineConfig } from "vite";
 import { viteStaticCopy } from "vite-plugin-static-copy";
 import tsconfigPaths from "vite-tsconfig-paths";
 
-export default defineConfig({
+export default defineConfig(({ command }) => ({
   optimizeDeps: {
     exclude: [
       "@ffmpeg/ffmpeg",
       "@sqlite.org/sqlite-wasm",
     ]
   },
-  base: "/convert/",
+  // Use "/" for local dev, "/convert/" for production build
+  base: command === "serve" ? "/" : "/convert/",
   plugins: [
     viteStaticCopy({
       targets: [
@@ -49,4 +50,4 @@ export default defineConfig({
     }),
     tsconfigPaths()
   ]
-});
+}));

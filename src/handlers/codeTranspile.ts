@@ -10,6 +10,7 @@ import type { FileData, FileFormat, FormatHandler } from "../FormatHandler.ts";
  */
 class codeTranspileHandler implements FormatHandler {
   public name = "codeTranspile";
+  public contributor = "leothefleo49";
   public ready = false;
 
   private ts: any = null;

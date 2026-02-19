@@ -166,6 +166,12 @@ export interface FormatHandler {
   supportAnyInput?: boolean;
 
   /**
+   * Who contributed this handler. Used to filter between original and new conversions.
+   * If omitted, the handler is considered "original" (from the upstream repo).
+   */
+  contributor?: string;
+
+  /**
    * Whether the handler is ready for use. Should be set in {@link init}.
    * If true, {@link doConvert} is expected to work.
    */

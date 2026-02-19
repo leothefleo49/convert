@@ -44,6 +44,11 @@ import textCipherHandler from "./textCipher.ts";
 import codeTranspileHandler from "./codeTranspile.ts";
 import threejs3DHandler from "./threejs3d.ts";
 import colorConvertHandler from "./colorConvert.ts";
+import fontHandler from "./fontMeta.ts";
+import hashHandler from "./hashChecksum.ts";
+import imageMetadataHandler from "./imageMeta.ts";
+import mathNotationHandler from "./mathNotation.ts";
+import unitConvertHandler from "./unitConvert.ts";
 
 const handlers: FormatHandler[] = [];
 try { handlers.push(new svgTraceHandler()) } catch (_) { };
@@ -92,5 +97,10 @@ try { handlers.push(new textCipherHandler()) } catch (_) { };
 try { handlers.push(new codeTranspileHandler()) } catch (_) { };
 try { handlers.push(new threejs3DHandler()) } catch (_) { };
 try { handlers.push(new colorConvertHandler()) } catch (_) { };
+try { handlers.push(new fontHandler()) } catch (_) { };
+try { handlers.push(new hashHandler()) } catch (_) { };
+try { handlers.push(new imageMetadataHandler()) } catch (_) { };
+try { handlers.push(new mathNotationHandler()) } catch (_) { };
+try { handlers.push(new unitConvertHandler()) } catch (_) { };
 
 export default handlers;

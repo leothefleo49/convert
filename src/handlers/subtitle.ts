@@ -5,6 +5,7 @@ import type { FileData, FileFormat, FormatHandler } from "../FormatHandler.ts";
  */
 class subtitleHandler implements FormatHandler {
   public name = "subtitle";
+  public contributor = "leothefleo49";
   public ready = true;
 
   public supportedFormats: FileFormat[] = [

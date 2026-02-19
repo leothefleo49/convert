@@ -23,6 +23,7 @@ import type { GLTF } from "three/addons/loaders/GLTFLoader.js";
  */
 class threejs3DHandler implements FormatHandler {
   public name = "threejs3d";
+  public contributor = "leothefleo49";
   public ready = false;
 
   public supportedFormats: FileFormat[] = [
