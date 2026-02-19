@@ -181,9 +181,13 @@ ui.filterButtons.forEach(btn => {
 
 // ──── Theme Toggle ────
 function applyTheme(theme: string) {
+  // Temporarily enable transitions on all elements for a smooth theme switch
+  document.documentElement.classList.add("theme-transitioning");
   document.documentElement.setAttribute("data-theme", theme);
   if (ui.themeToggle) ui.themeToggle.textContent = theme === "dark" ? "Light" : "Dark";
   try { localStorage.setItem("convert-theme", theme); } catch {}
+  // Remove the transition class after animation completes so it doesn't interfere
+  setTimeout(() => document.documentElement.classList.remove("theme-transitioning"), 350);
 }
 // Restore saved theme
 try {
@@ -216,6 +220,13 @@ const customSlot2 = document.getElementById("custom-slot-2") as HTMLButtonElemen
 const customSlot3 = document.getElementById("custom-slot-3") as HTMLButtonElement;
 const saveCustomBtn = document.getElementById("save-custom-color") as HTMLButtonElement;
 let nextCustomSlot = 1;
+
+/** Update the pulsing ring to mark which slot will receive the next Save */
+function updateNextSlotIndicator() {
+  [customSlot1, customSlot2, customSlot3].forEach((el, i) => {
+    el?.classList.toggle("custom-slot-next", i + 1 === nextCustomSlot);
+  });
+}
 
 function applyAccent(color: string) {
   document.documentElement.style.setProperty("--accent", color);
@@ -252,6 +263,9 @@ function restoreCustomSlots() {
 }
 restoreCustomSlots();
 
+// Set initial next-slot indicator after slots are restored
+updateNextSlotIndicator();
+
 // Restore saved accent
 try {
   const savedAccent = localStorage.getItem("convert-accent") || "#6C5CE7";
@@ -262,6 +276,12 @@ ui.accentColors.forEach(dot => {
   dot.addEventListener("click", () => {
     const color = dot.getAttribute("data-color");
     if (color) applyAccent(color);
+    // If this is a custom slot, mark it as the next save target too
+    const slot = (dot as HTMLButtonElement).dataset["slot"];
+    if (slot) {
+      nextCustomSlot = parseInt(slot, 10);
+      updateNextSlotIndicator();
+    }
   });
 });
 if (ui.customAccent) {
@@ -283,6 +303,7 @@ if (saveCustomBtn) {
     try { localStorage.setItem(key, color); } catch {}
     applyAccent(color);
     nextCustomSlot = nextCustomSlot >= 3 ? 1 : nextCustomSlot + 1;
+    updateNextSlotIndicator();
   });
 }
 
@@ -327,95 +348,244 @@ if (copyErrorsBtn) {
   });
 }
 
-if (ui.syncInfoBtn) {
-  ui.syncInfoBtn.addEventListener("click", () => {
-    window.showPopup(`
-      <div class="upstream-manager">
-        <h2>Upstream Manager</h2>
-        <p class="um-subtitle">Keep your fork synced with <b>p2r3/convert</b> without losing your work</p>
+// ──── Upstream Manager (GitHub API) ────────────────────────────────────────
+const FORK_REPO   = "leothefleo49/convert";
+const UPSTREAM    = "p2r3:convert:master";
+const WORKFLOW_ID = "sync-upstream.yml";
+const GH_API      = "https://api.github.com";
 
-        <div class="um-section">
-          <h3>Quick Sync</h3>
-          <div class="um-step">
-            <div class="um-step-num">1</div>
-            <div class="um-step-content">
-              <p>Fetch the latest changes from upstream</p>
-              <code class="um-cmd" title="Click to copy" onclick="navigator.clipboard.writeText(this.textContent)">git fetch upstream</code>
-            </div>
-          </div>
-          <div class="um-step">
-            <div class="um-step-num">2</div>
-            <div class="um-step-content">
-              <p>See what changed before merging</p>
-              <code class="um-cmd" title="Click to copy" onclick="navigator.clipboard.writeText(this.textContent)">git log --oneline upstream/master..HEAD</code>
-              <code class="um-cmd" title="Click to copy" onclick="navigator.clipboard.writeText(this.textContent)">git log --oneline HEAD..upstream/master</code>
-            </div>
-          </div>
-          <div class="um-step">
-            <div class="um-step-num">3</div>
-            <div class="um-step-content">
-              <p>Merge upstream into your branch (keeps your commits on top)</p>
-              <code class="um-cmd" title="Click to copy" onclick="navigator.clipboard.writeText(this.textContent)">git merge upstream/master</code>
-            </div>
-          </div>
-          <div class="um-step">
-            <div class="um-step-num">4</div>
-            <div class="um-step-content">
-              <p>Push your updated fork</p>
-              <code class="um-cmd" title="Click to copy" onclick="navigator.clipboard.writeText(this.textContent)">git push origin master</code>
-            </div>
-          </div>
-        </div>
+function getGhToken(): string {
+  try { return localStorage.getItem("convert-gh-token") || ""; } catch { return ""; }
+}
+function setGhToken(t: string) {
+  try { if (t) localStorage.setItem("convert-gh-token", t); else localStorage.removeItem("convert-gh-token"); } catch {}
+}
 
-        <div class="um-section">
-          <h3>Compare Side-by-Side</h3>
-          <div class="um-step">
-            <div class="um-step-content">
-              <p>View diff of what upstream changed vs your code</p>
-              <code class="um-cmd" title="Click to copy" onclick="navigator.clipboard.writeText(this.textContent)">git diff HEAD...upstream/master</code>
-              <p style="margin-top:6px">Or open the compare view on GitHub:</p>
-              <code class="um-cmd" onclick="window.open(this.textContent,'_blank')" style="cursor:pointer;text-decoration:underline">https://github.com/leothefleo49/convert/compare/master...p2r3:convert:master</code>
-            </div>
-          </div>
-        </div>
-
-        <div class="um-section">
-          <h3>Cherry-Pick Specific Changes</h3>
-          <div class="um-step">
-            <div class="um-step-content">
-              <p>Pick individual commits without taking everything:</p>
-              <code class="um-cmd" title="Click to copy" onclick="navigator.clipboard.writeText(this.textContent)">git log --oneline upstream/master -20</code>
-              <code class="um-cmd" title="Click to copy" onclick="navigator.clipboard.writeText(this.textContent)">git cherry-pick &lt;commit-hash&gt;</code>
-            </div>
-          </div>
-        </div>
-
-        <div class="um-section">
-          <h3>View Upstream Activity</h3>
-          <div class="um-step">
-            <div class="um-step-content">
-              <p>Check the original repo for recent commits, tags, and releases:</p>
-              <code class="um-cmd" onclick="window.open(this.textContent,'_blank')" style="cursor:pointer;text-decoration:underline">https://github.com/p2r3/convert/commits/master</code>
-              <code class="um-cmd" onclick="window.open(this.textContent,'_blank')" style="cursor:pointer;text-decoration:underline">https://github.com/p2r3/convert/tags</code>
-              <code class="um-cmd" onclick="window.open(this.textContent,'_blank')" style="cursor:pointer;text-decoration:underline">https://github.com/p2r3/convert/releases</code>
-            </div>
-          </div>
-        </div>
-
-        <div class="um-tip">
-          <strong>Tip:</strong> If a merge has conflicts, VS Code highlights them. Edit the conflicting files, then
-          <code style="color:var(--accent)">git add .</code> and <code style="color:var(--accent)">git commit</code>.
-          Your custom handlers in <code style="color:var(--accent)">src/handlers/</code> will almost never conflict
-          since they're separate files.
-        </div>
-
-        <div class="um-actions">
-          <button class="um-btn-primary" onclick="window.hidePopup()">Done</button>
-          <button class="um-btn-secondary" onclick="window.open('https://github.com/leothefleo49/convert/compare/master...p2r3:convert:master','_blank')">Open GitHub Compare</button>
-        </div>
-      </div>
-    `);
+async function ghFetch(endpoint: string, opts: RequestInit = {}): Promise<Response> {
+  const token = getGhToken();
+  return fetch(`${GH_API}${endpoint}`, {
+    ...opts,
+    headers: {
+      Accept: "application/vnd.github+json",
+      "X-GitHub-Api-Version": "2022-11-28",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(opts.headers || {}),
+    }
   });
+}
+
+async function _umCheckStatus(panel: HTMLElement) {
+  const statusEl = panel.querySelector<HTMLElement>(".um-status-body")!;
+  statusEl.innerHTML = `<span class="um-loading">Checking…</span>`;
+  try {
+    const r = await ghFetch(`/repos/${FORK_REPO}/compare/${FORK_REPO.split("/")[1].split(":")[0]}:master...${UPSTREAM}`);
+    if (r.status === 401) { statusEl.innerHTML = `<span class="um-err">Token invalid or missing. Add a token below.</span>`; return; }
+    if (!r.ok) throw new Error(r.statusText);
+    const data = await r.json();
+    const behind = data.behind_by ?? 0;
+    const ahead  = data.ahead_by  ?? 0;
+    if (behind === 0) {
+      statusEl.innerHTML = `<span class="um-ok">✅ Up to date!</span>`;
+    } else {
+      const commitList = (data.commits || []).slice(0, 5)
+        .map((c: any) => `<li><code>${c.sha.slice(0,7)}</code> ${c.commit.message.split("\n")[0]}</li>`)
+        .join("");
+      statusEl.innerHTML = `
+        <span class="um-warn">⬆️ ${behind} commit${behind>1?"s":""} behind upstream${ahead>0?` (you are ${ahead} ahead)`:""}.</span>
+        <ul class="um-commit-list">${commitList}${behind>5?`<li>…and ${behind-5} more</li>`:""}</ul>`;
+    }
+  } catch(e: any) {
+    statusEl.innerHTML = `<span class="um-err">Error: ${e.message}</span>`;
+  }
+}
+
+async function _umLoadPRs(panel: HTMLElement) {
+  const prEl = panel.querySelector<HTMLElement>(".um-prs-body")!;
+  prEl.innerHTML = `<span class="um-loading">Loading open sync PRs…</span>`;
+  try {
+    const r = await ghFetch(`/repos/${FORK_REPO}/pulls?state=open&labels=upstream-sync&per_page=10`);
+    if (!r.ok) throw new Error(r.statusText);
+    const prs: any[] = await r.json();
+    if (prs.length === 0) {
+      prEl.innerHTML = `<p class="um-empty">No open upstream-sync PRs.</p>`;
+    } else {
+      prEl.innerHTML = prs.map(pr => `
+        <div class="um-pr" data-pr="${pr.number}">
+          <div class="um-pr-title"><a href="${pr.html_url}" target="_blank" rel="noopener">#${pr.number}</a> ${pr.title}</div>
+          <div class="um-pr-meta">by ${pr.user.login} · ${new Date(pr.created_at).toLocaleDateString()}</div>
+          <div class="um-pr-actions">
+            <button class="um-btn-sm um-view-pr" data-url="${pr.html_url}">View on GitHub</button>
+            <button class="um-btn-sm um-merge-pr um-btn-accent" data-pr="${pr.number}">Merge Now ✓</button>
+          </div>
+        </div>`).join("");
+      prEl.querySelectorAll<HTMLButtonElement>(".um-view-pr").forEach(btn => {
+        btn.addEventListener("click", () => window.open(btn.dataset["url"], "_blank"));
+      });
+      prEl.querySelectorAll<HTMLButtonElement>(".um-merge-pr").forEach(btn => {
+        btn.addEventListener("click", async () => {
+          const token = getGhToken();
+          if (!token) { alert("Please enter and save your GitHub token first."); return; }
+          const prNum = btn.dataset["pr"];
+          btn.disabled = true; btn.textContent = "Merging…";
+          try {
+            const mr = await ghFetch(`/repos/${FORK_REPO}/pulls/${prNum}/merge`, {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ merge_method: "merge", commit_title: `Merge upstream sync PR #${prNum}` })
+            });
+            if (mr.status === 200 || mr.status === 204) {
+              btn.textContent = "✅ Merged!";
+              setTimeout(() => _umLoadPRs(panel), 1500);
+            } else {
+              const err = await mr.json().catch(() => ({ message: mr.statusText }));
+              btn.textContent = "Failed";
+              btn.disabled = false;
+              alert(`Merge failed: ${err.message}`);
+            }
+          } catch(e: any) {
+            btn.textContent = "Error"; btn.disabled = false;
+            alert(`Error: ${e.message}`);
+          }
+        });
+      });
+    }
+  } catch(e: any) {
+    prEl.innerHTML = `<span class="um-err">Error: ${e.message}</span>`;
+  }
+}
+
+async function _umTriggerSync(btn: HTMLButtonElement, autoMerge: boolean, panel: HTMLElement) {
+  const token = getGhToken();
+  if (!token) { alert("Please enter and save your GitHub token first."); return; }
+  btn.disabled = true; btn.textContent = "Triggering…";
+  try {
+    const r = await ghFetch(`/repos/${FORK_REPO}/actions/workflows/${WORKFLOW_ID}/dispatches`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ref: "master", inputs: { auto_merge: autoMerge ? "true" : "false" } })
+    });
+    if (r.status === 204) {
+      btn.textContent = "✅ Workflow triggered!";
+      setTimeout(() => { btn.disabled = false; btn.textContent = autoMerge ? "Trigger + Auto-Merge" : "Trigger Sync Workflow"; }, 3000);
+      if (autoMerge) {
+        const msg = panel.querySelector<HTMLElement>(".um-trigger-msg")!;
+        msg.textContent = "Workflow running — it will create and auto-merge a PR. Check the PRs section in ~1 min.";
+        msg.classList.remove("um-hide");
+      } else {
+        setTimeout(() => _umLoadPRs(panel), 10000); // reload PRs after a bit
+      }
+    } else {
+      const err = await r.json().catch(() => ({ message: r.statusText }));
+      btn.textContent = "Failed"; btn.disabled = false;
+      alert(`Failed to trigger workflow: ${err.message}`);
+    }
+  } catch(e: any) {
+    btn.textContent = "Error"; btn.disabled = false;
+    alert(`Error: ${e.message}`);
+  }
+}
+
+function showUpstreamManager() {
+  const savedToken = getGhToken();
+  window.showPopup(`
+    <div class="upstream-manager">
+      <h2>⬆️ Upstream Sync Manager</h2>
+      <p class="um-subtitle">Sync your fork with <b>p2r3/convert</b> right here — no terminal or GitHub tab needed.</p>
+
+      <div class="um-section">
+        <h3>🔑 GitHub Token</h3>
+        <p class="um-hint">Needs <code>repo</code> + <code>workflow</code> scopes.
+          <a href="https://github.com/settings/tokens/new?scopes=repo,workflow&description=Convert+Upstream+Sync" target="_blank" rel="noopener">Create one here ↗</a>
+        </p>
+        <div class="um-token-row">
+          <input id="um-token-input" type="password" placeholder="ghp_…" value="${savedToken}" autocomplete="off" spellcheck="false" />
+          <button id="um-token-toggle" class="um-btn-sm">Show</button>
+          <button id="um-token-save" class="um-btn-sm um-btn-accent">Save</button>
+          <button id="um-token-clear" class="um-btn-sm">Clear</button>
+        </div>
+        <p id="um-token-msg" class="um-hide um-ok"></p>
+      </div>
+
+      <div class="um-section">
+        <div class="um-section-header">
+          <h3>📊 Upstream Status</h3>
+          <button id="um-check-btn" class="um-btn-sm um-btn-accent">Check now</button>
+        </div>
+        <div class="um-status-body"><p class="um-hint">Click "Check now" to see if you are behind upstream.</p></div>
+      </div>
+
+      <div class="um-section">
+        <div class="um-section-header">
+          <h3>📋 Open Sync PRs</h3>
+          <button id="um-refresh-prs" class="um-btn-sm">Refresh</button>
+        </div>
+        <div class="um-prs-body"><p class="um-hint">PRs created by the sync workflow appear here.</p></div>
+      </div>
+
+      <div class="um-section">
+        <h3>🚀 Trigger Sync</h3>
+        <p class="um-hint">Runs the GitHub Actions workflow that fetches upstream changes and opens a PR.</p>
+        <div class="um-trigger-btns">
+          <button id="um-trigger-btn" class="um-btn-sm">Trigger Sync Workflow</button>
+          <button id="um-trigger-auto-btn" class="um-btn-sm um-btn-accent">Trigger + Auto-Merge</button>
+        </div>
+        <p class="um-trigger-msg um-ok um-hide"></p>
+      </div>
+
+      <div class="um-actions">
+        <button class="um-btn-primary" onclick="window.hidePopup()">Close</button>
+        <button class="um-btn-secondary" onclick="window.open('https://github.com/${FORK_REPO}/compare/master...p2r3:convert:master','_blank')">Compare on GitHub ↗</button>
+      </div>
+    </div>
+  `);
+
+  const panel = document.querySelector<HTMLElement>(".upstream-manager")!.parentElement!;
+
+  // Token controls
+  const tokenInput  = panel.querySelector<HTMLInputElement>("#um-token-input")!;
+  const tokenToggle = panel.querySelector<HTMLButtonElement>("#um-token-toggle")!;
+  const tokenSave   = panel.querySelector<HTMLButtonElement>("#um-token-save")!;
+  const tokenClear  = panel.querySelector<HTMLButtonElement>("#um-token-clear")!;
+  const tokenMsg    = panel.querySelector<HTMLElement>("#um-token-msg")!;
+  tokenToggle.addEventListener("click", () => {
+    const hidden = tokenInput.type === "password";
+    tokenInput.type = hidden ? "text" : "password";
+    tokenToggle.textContent = hidden ? "Hide" : "Show";
+  });
+  tokenSave.addEventListener("click", () => {
+    setGhToken(tokenInput.value.trim());
+    tokenMsg.textContent = "Token saved!"; tokenMsg.classList.remove("um-hide");
+    setTimeout(() => tokenMsg.classList.add("um-hide"), 2000);
+  });
+  tokenClear.addEventListener("click", () => {
+    tokenInput.value = ""; setGhToken("");
+    tokenMsg.textContent = "Token cleared."; tokenMsg.classList.remove("um-hide");
+    setTimeout(() => tokenMsg.classList.add("um-hide"), 2000);
+  });
+
+  // Status check
+  const checkBtn = panel.querySelector<HTMLButtonElement>("#um-check-btn")!;
+  checkBtn.addEventListener("click", () => _umCheckStatus(panel));
+
+  // PR list
+  const refreshPRs = panel.querySelector<HTMLButtonElement>("#um-refresh-prs")!;
+  refreshPRs.addEventListener("click", () => _umLoadPRs(panel));
+
+  // Trigger workflow buttons
+  const triggerBtn     = panel.querySelector<HTMLButtonElement>("#um-trigger-btn")!;
+  const triggerAutoBtn = panel.querySelector<HTMLButtonElement>("#um-trigger-auto-btn")!;
+  triggerBtn.addEventListener("click",     () => _umTriggerSync(triggerBtn,     false, panel));
+  triggerAutoBtn.addEventListener("click", () => _umTriggerSync(triggerAutoBtn, true,  panel));
+
+  // Auto-load status and PRs if token is present
+  if (savedToken) {
+    _umCheckStatus(panel);
+    _umLoadPRs(panel);
+  }
+}
+
+if (ui.syncInfoBtn) {
+  ui.syncInfoBtn.addEventListener("click", showUpstreamManager);
 }
 
 // ──── Preview Close ────
@@ -1090,8 +1260,8 @@ async function buildOptionList () {
     }
   } catch {
     logLoading("[skip] No cache -- will init handlers individually", "log-skip");
-    console.warn(
-      "Missing supported format precache.\n\n" +
+    console.log(
+      "Missing supported format precache. " +
       "Consider saving the output of printSupportedFormatCache() to cache.json."
     );
   }

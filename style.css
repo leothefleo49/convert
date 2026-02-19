@@ -42,8 +42,22 @@ body {
   font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
   background: var(--bg-primary);
   color: var(--text-primary);
-  transition: background var(--transition), color var(--transition);
   min-height: 100vh;
+}
+
+/* Theme transition — temporarily applied during light↔dark toggle */
+.theme-transitioning,
+.theme-transitioning *,
+.theme-transitioning *::before,
+.theme-transitioning *::after {
+  transition:
+    background-color 0.28s ease,
+    background 0.28s ease,
+    color 0.28s ease,
+    border-color 0.28s ease,
+    box-shadow 0.28s ease,
+    fill 0.28s ease,
+    stroke 0.28s ease !important;
 }
 
 #file-input { display: none; }
@@ -182,6 +196,15 @@ body {
 }
 .custom-slot.has-color {
   border-style: solid !important;
+}
+/* Ring indicating which slot will receive next Save */
+.custom-slot.custom-slot-next {
+  box-shadow: 0 0 0 3px var(--bg-primary), 0 0 0 5px var(--accent) !important;
+  animation: slot-next-pulse 1.6s ease-in-out infinite;
+}
+@keyframes slot-next-pulse {
+  0%, 100% { box-shadow: 0 0 0 3px var(--bg-primary), 0 0 0 5px var(--accent); }
+  50%       { box-shadow: 0 0 0 3px var(--bg-primary), 0 0 0 7px color-mix(in srgb, var(--accent) 50%, transparent); }
 }
 
 /* Accent color dots */
@@ -713,41 +736,72 @@ body {
   color: var(--accent);
 }
 
-/* ──── Upstream Manager Popup ──── */
-.upstream-manager { text-align: left; max-width: 600px; }
-.upstream-manager h2 { text-align: center; margin-bottom: 4px; }
-.upstream-manager .um-subtitle { text-align: center; color: var(--text-secondary); font-size: 0.85rem; margin: 0 0 16px; }
-.upstream-manager .um-section { margin-bottom: 16px; }
-.upstream-manager .um-section h3 { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted); margin: 0 0 8px; }
-.upstream-manager .um-step {
-  display: flex; gap: 10px; align-items: flex-start; margin-bottom: 10px;
-  background: var(--bg-input); padding: 10px 12px; border-radius: var(--radius-sm);
+/* ──── Upstream Manager Popup (GitHub API) ──── */
+.upstream-manager { text-align: left; max-width: 580px; }
+.upstream-manager h2 { text-align: center; margin: 0 0 4px; font-size: 1.1rem; }
+.upstream-manager .um-subtitle { text-align: center; color: var(--text-secondary); font-size: 0.82rem; margin: 0 0 16px; }
+.upstream-manager .um-section {
+  margin-bottom: 14px;
+  background: var(--bg-input);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
 }
-.upstream-manager .um-step-num {
-  background: var(--accent); color: white; width: 22px; height: 22px; border-radius: 50%;
-  display: flex; align-items: center; justify-content: center; font-size: 0.7rem; font-weight: 700; flex-shrink: 0;
+.upstream-manager .um-section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.upstream-manager .um-section h3 { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted); margin: 0 0 6px; }
+.upstream-manager .um-section-header h3 { margin: 0; }
+.upstream-manager .um-hint { font-size: 0.8rem; color: var(--text-muted); margin: 0 0 8px; }
+.upstream-manager .um-hint a { color: var(--accent); }
+
+/* Token row */
+.um-token-row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.um-token-row input {
+  flex: 1; min-width: 0; padding: 5px 8px; font-size: 0.82rem; font-family: monospace;
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text-primary);
 }
-.upstream-manager .um-step-content { flex: 1; }
-.upstream-manager .um-step-content p { margin: 0 0 4px; font-size: 0.85rem; }
-.upstream-manager .um-cmd {
-  display: block; font-family: monospace; font-size: 0.8rem; color: var(--accent);
-  background: var(--bg-primary); padding: 6px 10px; border-radius: 4px; margin-top: 4px;
-  cursor: pointer; transition: background var(--transition); user-select: all;
+
+/* Common small button */
+.um-btn-sm {
+  padding: 4px 10px; font-size: 0.78rem; cursor: pointer; border-radius: var(--radius-sm);
+  background: var(--bg-card); color: var(--text-secondary); border: 1px solid var(--border);
+  transition: all var(--transition); white-space: nowrap;
 }
-.upstream-manager .um-cmd:hover { background: var(--border); }
-.upstream-manager .um-tip {
-  background: color-mix(in srgb, var(--accent) 10%, transparent);
-  border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
-  border-radius: var(--radius-sm); padding: 10px 12px; font-size: 0.8rem; color: var(--text-secondary);
-}
-.upstream-manager .um-tip strong { color: var(--text-primary); }
-.upstream-manager .um-actions { display: flex; gap: 8px; justify-content: center; margin-top: 16px; }
+.um-btn-sm:hover { background: var(--border); color: var(--text-primary); }
+.um-btn-sm:disabled { opacity: 0.5; cursor: not-allowed; }
+.um-btn-sm.um-btn-accent { background: var(--accent); color: #fff; border-color: var(--accent); }
+.um-btn-sm.um-btn-accent:hover { opacity: 0.85; }
+
+/* Status + Messages */
+.um-ok      { color: #22c55e; font-size: 0.85rem; }
+.um-warn    { color: #f59e0b; font-size: 0.85rem; }
+.um-err     { color: #ef4444; font-size: 0.85rem; }
+.um-loading { color: var(--text-muted); font-size: 0.85rem; }
+.um-empty   { color: var(--text-muted); font-size: 0.82rem; margin: 0; }
+.um-hide    { display: none; }
+.um-commit-list { margin: 6px 0 0; padding-left: 18px; font-size: 0.78rem; color: var(--text-secondary); }
+.um-commit-list li { margin-bottom: 2px; }
+.um-commit-list code { font-size: 0.75rem; color: var(--accent); }
+
+/* PR cards */
+.um-pr { background: var(--bg-card); border-radius: var(--radius-sm); padding: 8px 10px; margin-bottom: 6px; border: 1px solid var(--border); }
+.um-pr:last-child { margin-bottom: 0; }
+.um-pr-title { font-size: 0.85rem; font-weight: 600; margin-bottom: 2px; }
+.um-pr-title a { color: var(--accent); text-decoration: none; }
+.um-pr-meta  { font-size: 0.75rem; color: var(--text-muted); margin-bottom: 6px; }
+.um-pr-actions { display: flex; gap: 6px; }
+
+/* Trigger row */
+.um-trigger-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+.um-trigger-msg  { margin: 6px 0 0; font-size: 0.8rem; }
+
+/* Bottom actions */
+.upstream-manager .um-actions { display: flex; gap: 8px; justify-content: center; margin-top: 14px; }
 .upstream-manager .um-actions button {
-  padding: 8px 20px; border-radius: var(--radius-sm); font-size: 0.85rem; cursor: pointer;
+  padding: 7px 18px; border-radius: var(--radius-sm); font-size: 0.85rem; cursor: pointer;
   transition: all var(--transition); border: 1px solid var(--border);
 }
-.upstream-manager .um-btn-primary { background: var(--accent) !important; color: white !important; border-color: var(--accent) !important; }
+.upstream-manager .um-btn-primary  { background: var(--accent) !important; color: #fff !important; border-color: var(--accent) !important; }
 .upstream-manager .um-btn-secondary { background: var(--bg-card); color: var(--text-primary); }
+.upstream-manager .um-btn-secondary:hover { background: var(--border); }
 
 /* ---- Log badge on settings gear ---- */
 .log-badge {

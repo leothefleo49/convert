@@ -1,0 +1,5 @@
+# All files require review from @leothefleo49 before any PR can be merged.
+# This means external contributors' PRs will always wait for your explicit approval.
+# Your own PRs (via the Upstream Sync workflow triggered with your token) can be
+# merged immediately using the in-app "Merge Now" button or auto_merge=true dispatch.
+* @leothefleo49
