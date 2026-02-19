@@ -1,4 +1,4 @@
-import CommonFormats from "src/CommonFormats.ts";
+import CommonFormats from "../CommonFormats.ts";
 import type { FileData, FileFormat, FormatHandler } from "../FormatHandler.ts";
 
 // hardcoded limits to prevent big SVG crash

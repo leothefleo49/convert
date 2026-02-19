@@ -1,5 +1,5 @@
 import type { FileData, FileFormat, FormatHandler } from "../FormatHandler.ts";
-import CommonFormats from "src/CommonFormats.ts";
+import CommonFormats from "../CommonFormats.ts";
 import JSZip from "jszip";
 import * as mime from "mime";
 import normalizeMimeType from "../normalizeMimeType.ts";

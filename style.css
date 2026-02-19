@@ -594,7 +594,7 @@ body {
   left: 50%; top: 50%;
   min-width: 320px;
   max-width: 90vw;
-  max-height: 90vh;
+  max-height: 85vh;
   overflow-y: auto;
   transform: translate(-50%, -50%);
   background: var(--bg-card);
@@ -605,27 +605,41 @@ body {
   box-shadow: var(--shadow);
   z-index: 201;
 }
+/* Themed scrollbar for popup */
+#popup::-webkit-scrollbar { width: 6px; }
+#popup::-webkit-scrollbar-track { background: transparent; }
+#popup::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+#popup::-webkit-scrollbar-thumb:hover { background: var(--accent); }
+
 #popup .popup-close {
-  position: sticky;
-  top: 0;
-  float: right;
-  background: var(--bg-input);
-  border: 1px solid var(--border);
-  color: var(--text-primary);
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
   width: 28px;
   height: 28px;
-  border-radius: 50%;
+  border-radius: var(--radius-sm);
   cursor: pointer;
-  font-size: 1rem;
+  font-size: 1.4rem;
+  line-height: 1;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin: -8px -8px 0 0;
-  z-index: 1;
+  padding: 0;
+  margin: 0;
+  transition: background var(--transition), color var(--transition);
 }
-#popup .popup-close:hover { background: var(--accent); color: white; }
-#popup h2 { margin-top: 0; font-size: 1.1rem; }
-#popup button {
+#popup .popup-close:hover {
+  background: var(--bg-input);
+  color: var(--text-primary);
+}
+#popup h2 { margin-top: 0; margin-right: 32px; font-size: 1.1rem; }
+#popup button:not(.popup-close) {
   font-size: 0.9rem;
   padding: 8px 24px;
   border: none;
@@ -635,7 +649,7 @@ body {
   cursor: pointer;
   transition: all var(--transition);
 }
-#popup button:hover { opacity: 0.85; }
+#popup button:not(.popup-close):hover { opacity: 0.85; }
 #popup pre {
   text-align: left;
   background: var(--bg-input);

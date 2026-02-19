@@ -3,7 +3,7 @@
 
 import type { FileData, FileFormat, FormatHandler } from "../FormatHandler.ts";
 import { Buffer } from "buffer";
-import CommonFormats from "src/CommonFormats.ts";
+import CommonFormats from "../CommonFormats.ts";
 
 if (typeof window !== "undefined") {
   (window as any).Buffer = Buffer;

@@ -4,7 +4,7 @@ import { parseODT, parseODP, parseODS } from "./envelope/parseODF.js";
 import parseDOCX from "./envelope/parseDOCX.js";
 import parsePPTX from "./envelope/parsePPTX.js";
 import parseXLSX from "./envelope/parseXLSX.js";
-import CommonFormats from "src/CommonFormats.ts";
+import CommonFormats from "../CommonFormats.ts";
 
 class envelopeHandler implements FormatHandler {
 

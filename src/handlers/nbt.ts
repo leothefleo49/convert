@@ -1,6 +1,6 @@
-import type { FileData, FileFormat, FormatHandler } from "src/FormatHandler";
+import type { FileData, FileFormat, FormatHandler } from "../FormatHandler.ts";
 import * as NBT from "nbtify";
-import CommonFormats from "src/CommonFormats";
+import CommonFormats from "../CommonFormats.ts";
 
 class nbtHandler implements FormatHandler {
     public name: string = "nbt";
