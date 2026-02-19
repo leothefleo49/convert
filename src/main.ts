@@ -170,23 +170,94 @@ if (ui.customAccent) {
   });
 }
 
-// ──── Upstream Sync Info ────
+// ──── Upstream Manager ────
 if (ui.syncInfoBtn) {
   ui.syncInfoBtn.addEventListener("click", () => {
     window.showPopup(`
-      <h2>How to Sync Upstream</h2>
-      <p style="text-align:left;color:var(--text-secondary);font-size:0.9rem;">
-        Pull the latest changes from the original repo without losing your work:
-      </p>
-      <div class="sync-commands">
-        <code>git fetch upstream</code>
-        <code>git merge upstream/master</code>
-        <code>git push origin master</code>
+      <div class="upstream-manager">
+        <h2>Upstream Manager</h2>
+        <p class="um-subtitle">Keep your fork synced with <b>p2r3/convert</b> without losing your work</p>
+
+        <div class="um-section">
+          <h3>Quick Sync</h3>
+          <div class="um-step">
+            <div class="um-step-num">1</div>
+            <div class="um-step-content">
+              <p>Fetch the latest changes from upstream</p>
+              <code class="um-cmd" title="Click to copy" onclick="navigator.clipboard.writeText(this.textContent)">git fetch upstream</code>
+            </div>
+          </div>
+          <div class="um-step">
+            <div class="um-step-num">2</div>
+            <div class="um-step-content">
+              <p>See what changed before merging</p>
+              <code class="um-cmd" title="Click to copy" onclick="navigator.clipboard.writeText(this.textContent)">git log --oneline upstream/master..HEAD</code>
+              <code class="um-cmd" title="Click to copy" onclick="navigator.clipboard.writeText(this.textContent)">git log --oneline HEAD..upstream/master</code>
+            </div>
+          </div>
+          <div class="um-step">
+            <div class="um-step-num">3</div>
+            <div class="um-step-content">
+              <p>Merge upstream into your branch (keeps your commits on top)</p>
+              <code class="um-cmd" title="Click to copy" onclick="navigator.clipboard.writeText(this.textContent)">git merge upstream/master</code>
+            </div>
+          </div>
+          <div class="um-step">
+            <div class="um-step-num">4</div>
+            <div class="um-step-content">
+              <p>Push your updated fork</p>
+              <code class="um-cmd" title="Click to copy" onclick="navigator.clipboard.writeText(this.textContent)">git push origin master</code>
+            </div>
+          </div>
+        </div>
+
+        <div class="um-section">
+          <h3>Compare Side-by-Side</h3>
+          <div class="um-step">
+            <div class="um-step-content">
+              <p>View diff of what upstream changed vs your code</p>
+              <code class="um-cmd" title="Click to copy" onclick="navigator.clipboard.writeText(this.textContent)">git diff HEAD...upstream/master</code>
+              <p style="margin-top:6px">Or open the compare view on GitHub:</p>
+              <code class="um-cmd" onclick="window.open(this.textContent,'_blank')" style="cursor:pointer;text-decoration:underline">https://github.com/leothefleo49/convert/compare/master...p2r3:convert:master</code>
+            </div>
+          </div>
+        </div>
+
+        <div class="um-section">
+          <h3>Cherry-Pick Specific Changes</h3>
+          <div class="um-step">
+            <div class="um-step-content">
+              <p>Pick individual commits without taking everything:</p>
+              <code class="um-cmd" title="Click to copy" onclick="navigator.clipboard.writeText(this.textContent)">git log --oneline upstream/master -20</code>
+              <code class="um-cmd" title="Click to copy" onclick="navigator.clipboard.writeText(this.textContent)">git cherry-pick &lt;commit-hash&gt;</code>
+            </div>
+          </div>
+        </div>
+
+        <div class="um-section">
+          <h3>View Upstream Activity</h3>
+          <div class="um-step">
+            <div class="um-step-content">
+              <p>Check the original repo for recent commits, tags, and releases:</p>
+              <code class="um-cmd" onclick="window.open(this.textContent,'_blank')" style="cursor:pointer;text-decoration:underline">https://github.com/p2r3/convert/commits/master</code>
+              <code class="um-cmd" onclick="window.open(this.textContent,'_blank')" style="cursor:pointer;text-decoration:underline">https://github.com/p2r3/convert/tags</code>
+              <code class="um-cmd" onclick="window.open(this.textContent,'_blank')" style="cursor:pointer;text-decoration:underline">https://github.com/p2r3/convert/releases</code>
+            </div>
+          </div>
+        </div>
+
+        <div class="um-tip">
+          <strong>Tip:</strong> If a merge has conflicts, VS Code highlights them. Edit the conflicting files, then
+          <code style="color:var(--accent)">git add .</code> and <code style="color:var(--accent)">git commit</code>.
+          Your custom handlers in <code style="color:var(--accent)">src/handlers/</code> will almost never conflict
+          since they're separate files.
+        </div>
+
+        <div class="um-actions">
+          <button class="um-btn-primary" onclick="window.hidePopup()">Done</button>
+          <button class="um-btn-secondary" onclick="window.open('https://github.com/leothefleo49/convert/compare/master...p2r3:convert:master','_blank')">Open GitHub Compare</button>
+        </div>
       </div>
-      <p style="text-align:left;color:var(--text-secondary);font-size:0.85rem;">
-        If there are conflicts, resolve them in VS Code, then <code style="color:var(--accent)">git add .</code> and <code style="color:var(--accent)">git commit</code>.
-      </p>
-      <button onclick="window.hidePopup()">Got it</button>
     `);
   });
 }
@@ -404,6 +475,40 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
   ]);
 }
 
+// ──── Loading Screen ────
+const loadingScreen = document.getElementById("loading-screen");
+const loadingStatus = document.getElementById("loading-status");
+const loadingBarFill = document.getElementById("loading-bar-fill");
+const loadingDetail = document.getElementById("loading-detail");
+const loadingLog = document.getElementById("loading-log");
+
+function updateLoading(current: number, total: number, handlerName: string) {
+  const pct = Math.round((current / total) * 100);
+  if (loadingStatus) loadingStatus.textContent = `Loading tools... ${pct}%`;
+  if (loadingBarFill) loadingBarFill.style.width = pct + "%";
+  if (loadingDetail) loadingDetail.textContent = handlerName;
+}
+
+function logLoading(msg: string, cls: string = "") {
+  if (!loadingLog) return;
+  const line = document.createElement("div");
+  if (cls) line.className = cls;
+  line.textContent = msg;
+  loadingLog.appendChild(line);
+  loadingLog.scrollTop = loadingLog.scrollHeight;
+}
+
+function dismissLoading() {
+  if (!loadingScreen) return;
+  loadingScreen.classList.add("fade-out");
+  setTimeout(() => loadingScreen.classList.add("hidden"), 500);
+}
+
+/** Yield to the browser so it can repaint */
+function yieldToUI(): Promise<void> {
+  return new Promise(resolve => requestAnimationFrame(() => setTimeout(resolve, 0)));
+}
+
 async function buildOptionList () {
 
   allOptions.length = 0;
@@ -414,30 +519,25 @@ async function buildOptionList () {
   let loadedCount = 0;
 
   for (const handler of handlers) {
+    loadedCount++;
+
     if (!window.supportedFormatCache.has(handler.name)) {
-      // Update the loading popup with progress
-      loadedCount++;
-      ui.popupBox.innerHTML = `<h2>Loading tools...</h2>
-        <p style="color:var(--text-secondary);font-size:0.85rem;">
-          Initializing <b>${handler.name}</b>
-          <br><span style="font-size:0.75rem;color:var(--text-muted)">${loadedCount} / ${totalHandlers}</span>
-        </p>
-        <div style="background:var(--bg-input,#333);border-radius:8px;height:6px;margin-top:12px;overflow:hidden">
-          <div style="background:var(--accent,#6C5CE7);height:100%;width:${Math.round(loadedCount/totalHandlers*100)}%;transition:width 0.2s"></div>
-        </div>`;
-      console.warn(`Cache miss for formats of handler "${handler.name}".`);
+      updateLoading(loadedCount, totalHandlers, handler.name);
+      // Yield so the browser actually paints the progress update
+      await yieldToUI();
+
       try {
-        await withTimeout(handler.init(), 10000, handler.name);
+        await withTimeout(handler.init(), 8000, handler.name);
+        logLoading(`✓ ${handler.name}`, "log-ok");
       } catch (e) {
+        const reason = e instanceof Error ? e.message : String(e);
+        logLoading(`⊘ ${handler.name} — ${reason}`, "log-skip");
         console.warn(`Skipping handler "${handler.name}":`, e);
         continue;
       }
       if (handler.supportedFormats) {
         window.supportedFormatCache.set(handler.name, handler.supportedFormats);
-        console.info(`Updated supported format cache for "${handler.name}".`);
       }
-    } else {
-      loadedCount++;
     }
     const supportedFormats = window.supportedFormatCache.get(handler.name);
     if (!supportedFormats) {
@@ -537,9 +637,16 @@ async function buildOptionList () {
 }
 
 (async () => {
+  console.log("[convert] Starting initialization...");
   try {
-    const cacheJSON = await fetch("cache.json").then(r => r.json());
-    window.supportedFormatCache = new Map(cacheJSON);
+    const resp = await fetch("cache.json");
+    if (resp.ok) {
+      const cacheJSON = await resp.json();
+      window.supportedFormatCache = new Map(cacheJSON);
+      console.log("[convert] Loaded format cache from cache.json");
+    } else {
+      throw new Error("No cache.json");
+    }
   } catch {
     console.warn(
       "Missing supported format precache.\n\n" +
@@ -548,11 +655,12 @@ async function buildOptionList () {
   }
   try {
     await buildOptionList();
-    console.log("Built initial format list.");
+    console.log("[convert] Built initial format list.");
   } catch (e) {
-    console.error("Error building option list:", e);
+    console.error("[convert] Error building option list:", e);
   } finally {
-    // Always dismiss the loading overlay so the page is usable
+    // Always dismiss: first loading screen, then popup as backup
+    dismissLoading();
     window.hidePopup();
   }
 })();
