@@ -70,18 +70,21 @@ body {
 #logo .accent { color: var(--accent); }
 #top-bar-right { display: flex; gap: 8px; }
 #top-bar-right button {
-  width: 36px;
+  min-width: 36px;
   height: 36px;
+  padding: 0 10px;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--bg-card);
   color: var(--text-primary);
-  font-size: 1.1rem;
+  font-size: 0.8rem;
+  font-weight: 600;
   cursor: pointer;
   transition: all var(--transition);
   display: flex;
   align-items: center;
   justify-content: center;
+  white-space: nowrap;
 }
 #top-bar-right button:hover {
   background: var(--accent);
@@ -139,13 +142,46 @@ body {
   gap: 8px;
   margin-top: 8px;
 }
-.settings-section label input[type="color"] {
+.settings-section label input[type="color"],
+#custom-color-row input[type="color"] {
   width: 28px;
   height: 28px;
   border: none;
   border-radius: 50%;
   cursor: pointer;
   padding: 0;
+  -webkit-appearance: none;
+  appearance: none;
+  background: none;
+}
+#custom-color-row input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
+#custom-color-row input[type="color"]::-webkit-color-swatch { border: none; border-radius: 50%; }
+#custom-color-row input[type="color"]::-moz-color-swatch { border: none; border-radius: 50%; }
+#custom-color-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+#save-custom-color {
+  font-size: 0.75rem !important;
+  padding: 4px 10px !important;
+  border-radius: 14px !important;
+  background: var(--bg-input) !important;
+  color: var(--text-secondary);
+  border: 1px solid var(--border) !important;
+  cursor: pointer;
+}
+#save-custom-color:hover { border-color: var(--accent) !important; color: var(--accent); }
+
+/* Custom color slots */
+.custom-slot {
+  position: relative;
+  background: var(--bg-input) !important;
+  border: 2px dashed var(--border) !important;
+}
+.custom-slot.has-color {
+  border-style: solid !important;
 }
 
 /* Accent color dots */
@@ -558,6 +594,8 @@ body {
   left: 50%; top: 50%;
   min-width: 320px;
   max-width: 90vw;
+  max-height: 90vh;
+  overflow-y: auto;
   transform: translate(-50%, -50%);
   background: var(--bg-card);
   border: 1px solid var(--border);
@@ -567,6 +605,25 @@ body {
   box-shadow: var(--shadow);
   z-index: 201;
 }
+#popup .popup-close {
+  position: sticky;
+  top: 0;
+  float: right;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: -8px -8px 0 0;
+  z-index: 1;
+}
+#popup .popup-close:hover { background: var(--accent); color: white; }
 #popup h2 { margin-top: 0; font-size: 1.1rem; }
 #popup button {
   font-size: 0.9rem;

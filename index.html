@@ -17,8 +17,8 @@
       <h1 id="logo">Convert<span class="accent">.</span>to<span class="accent">.</span>it</h1>
     </div>
     <div id="top-bar-right">
-      <button id="theme-toggle" title="Toggle dark/light mode">&#9790;</button>
-      <button id="settings-toggle" title="Settings">&#9881;</button>
+      <button id="theme-toggle" title="Toggle dark/light mode">Dark</button>
+      <button id="settings-toggle" title="Settings">Set</button>
     </div>
   </header>
 
@@ -35,8 +35,13 @@
         <button class="color-dot" data-color="#E84393" style="background:#E84393" title="Pink"></button>
         <button class="color-dot" data-color="#FF6B6B" style="background:#FF6B6B" title="Red"></button>
         <button class="color-dot" data-color="#1C77FF" style="background:#1C77FF" title="Classic Blue"></button>
+        <button class="color-dot custom-slot" id="custom-slot-1" data-slot="1" title="Saved custom 1"></button>
+        <button class="color-dot custom-slot" id="custom-slot-2" data-slot="2" title="Saved custom 2"></button>
       </div>
-      <label>Custom: <input type="color" id="custom-accent" value="#6C5CE7"></label>
+      <div id="custom-color-row">
+        <input type="color" id="custom-accent" value="#6C5CE7">
+        <button id="save-custom-color" title="Save current color to a slot">Save</button>
+      </div>
     </div>
     <div class="settings-section">
       <h3>Mode</h3>
@@ -46,7 +51,7 @@
       <h3>Filter Formats</h3>
       <div id="filter-panel">
         <button class="filter-btn active" data-filter="all">All</button>
-        <button class="filter-btn" data-filter="new">&#10024; My Additions</button>
+        <button class="filter-btn" data-filter="new">My Additions</button>
         <button class="filter-btn" data-filter="original">Original</button>
       </div>
     </div>
@@ -89,7 +94,7 @@
 
     <div id="from-container" class="format-container">
       <h2>Convert from:</h2>
-      <input type="text" id="search-from" class="search" placeholder="&#128269; Search input formats...">
+      <input type="text" id="search-from" class="search" placeholder="Search input formats...">
       <div id="from-list" class="format-list"></div>
     </div>
 
@@ -102,7 +107,7 @@
 
     <div id="to-container" class="format-container">
       <h2>Convert to:</h2>
-      <input type="text" id="search-to" class="search" placeholder="&#128269; Search output formats...">
+      <input type="text" id="search-to" class="search" placeholder="Search output formats...">
       <div id="to-list" class="format-list"></div>
     </div>
 

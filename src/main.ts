@@ -117,7 +117,7 @@ ui.filterButtons.forEach(btn => {
 // ──── Theme Toggle ────
 function applyTheme(theme: string) {
   document.documentElement.setAttribute("data-theme", theme);
-  if (ui.themeToggle) ui.themeToggle.textContent = theme === "dark" ? "☀" : "☽";
+  if (ui.themeToggle) ui.themeToggle.textContent = theme === "dark" ? "Light" : "Dark";
   try { localStorage.setItem("convert-theme", theme); } catch {}
 }
 // Restore saved theme
@@ -141,16 +141,41 @@ if (ui.settingsToggle && ui.settingsDrawer) {
 }
 
 // ──── Accent Color Picker ────
+const customSlot1 = document.getElementById("custom-slot-1") as HTMLButtonElement;
+const customSlot2 = document.getElementById("custom-slot-2") as HTMLButtonElement;
+const saveCustomBtn = document.getElementById("save-custom-color") as HTMLButtonElement;
+let nextCustomSlot = 1;
+
 function applyAccent(color: string) {
   document.documentElement.style.setProperty("--accent", color);
   document.documentElement.style.setProperty("--highlight-color", color);
   try { localStorage.setItem("convert-accent", color); } catch {}
-  // Update active dot
+  // Update active dot (presets + custom slots)
   ui.accentColors.forEach(dot => {
     dot.classList.toggle("active", dot.getAttribute("data-color") === color);
   });
   if (ui.customAccent) ui.customAccent.value = color;
 }
+
+function restoreCustomSlots() {
+  try {
+    const c1 = localStorage.getItem("convert-custom-color-1");
+    const c2 = localStorage.getItem("convert-custom-color-2");
+    if (c1 && customSlot1) {
+      customSlot1.style.background = c1 + " !important";
+      customSlot1.style.setProperty("background", c1, "important");
+      customSlot1.setAttribute("data-color", c1);
+      customSlot1.classList.add("has-color");
+    }
+    if (c2 && customSlot2) {
+      customSlot2.style.setProperty("background", c2, "important");
+      customSlot2.setAttribute("data-color", c2);
+      customSlot2.classList.add("has-color");
+    }
+  } catch {}
+}
+restoreCustomSlots();
+
 // Restore saved accent
 try {
   const savedAccent = localStorage.getItem("convert-accent") || "#6C5CE7";
@@ -166,6 +191,22 @@ ui.accentColors.forEach(dot => {
 if (ui.customAccent) {
   ui.customAccent.addEventListener("input", () => {
     applyAccent(ui.customAccent.value);
+  });
+}
+if (saveCustomBtn) {
+  saveCustomBtn.addEventListener("click", () => {
+    const color = ui.customAccent?.value;
+    if (!color) return;
+    const slot = nextCustomSlot === 1 ? customSlot1 : customSlot2;
+    const key = `convert-custom-color-${nextCustomSlot}`;
+    if (slot) {
+      slot.style.setProperty("background", color, "important");
+      slot.setAttribute("data-color", color);
+      slot.classList.add("has-color");
+    }
+    try { localStorage.setItem(key, color); } catch {}
+    applyAccent(color);
+    nextCustomSlot = nextCustomSlot === 1 ? 2 : 1;
   });
 }
 
@@ -438,10 +479,14 @@ window.addEventListener("paste", fileSelectHandler);
  * @param html HTML content of the popup box.
  */
 window.showPopup = function (html: string) {
-  ui.popupBox.innerHTML = html;
+  ui.popupBox.innerHTML = `<button class="popup-close" onclick="window.hidePopup()">&times;</button>` + html;
   ui.popupBox.style.display = "block";
   ui.popupBackground.style.display = "block";
 }
+// Click backdrop to close popup
+ui.popupBackground.addEventListener("click", () => {
+  window.hidePopup();
+});
 /**
  * Hide the on-screen popup.
  */
@@ -525,21 +570,27 @@ async function buildOptionList () {
     loadedCount++;
 
     if (!window.supportedFormatCache.has(handler.name)) {
-      updateLoading(loadedCount, totalHandlers, handler.name);
-      // Yield so the browser actually paints the progress update
-      await yieldToUI();
-
-      try {
-        await withTimeout(handler.init(), 8000, handler.name);
-        logLoading(`✓ ${handler.name}`, "log-ok");
-      } catch (e) {
-        const reason = e instanceof Error ? e.message : String(e);
-        logLoading(`⊘ ${handler.name} — ${reason}`, "log-skip");
-        console.warn(`Skipping handler "${handler.name}":`, e);
-        continue;
-      }
-      if (handler.supportedFormats) {
+      // Many handlers set supportedFormats in their constructor — no init needed
+      if (handler.supportedFormats && handler.supportedFormats.length > 0) {
         window.supportedFormatCache.set(handler.name, handler.supportedFormats);
+        logLoading(`[ok] ${handler.name} (ready)`, "log-ok");
+      } else {
+        // Handler needs init() to populate its format list (e.g. FFmpeg, ImageMagick)
+        updateLoading(loadedCount, totalHandlers, handler.name);
+        await yieldToUI();
+
+        try {
+          await withTimeout(handler.init(), 12000, handler.name);
+          logLoading(`[ok] ${handler.name}`, "log-ok");
+        } catch (e) {
+          const reason = e instanceof Error ? e.message : String(e);
+          logLoading(`[skip] ${handler.name} -- ${reason}`, "log-skip");
+          console.warn(`Skipping handler "${handler.name}":`, e);
+        }
+        // Cache whatever formats became available (even if init partially failed)
+        if (handler.supportedFormats && handler.supportedFormats.length > 0) {
+          window.supportedFormatCache.set(handler.name, handler.supportedFormats);
+        }
       }
     }
     const supportedFormats = window.supportedFormatCache.get(handler.name);
@@ -650,10 +701,10 @@ async function buildOptionList () {
   try {
     const mod = await import("./handlers/index.ts");
     handlers = mod.default;
-    logLoading(`✓ ${handlers.length} handler modules loaded`, "log-ok");
+    logLoading(`[ok] ${handlers.length} handler modules loaded`, "log-ok");
     console.log(`[convert] ${handlers.length} handler modules imported`);
   } catch (e) {
-    logLoading("✗ Failed to load handler modules", "log-err");
+    logLoading("[err] Failed to load handler modules", "log-err");
     console.error("[convert] Handler import failed:", e);
     dismissLoading();
     return;
@@ -672,13 +723,13 @@ async function buildOptionList () {
     if (resp.ok) {
       const cacheJSON = await resp.json();
       window.supportedFormatCache = new Map(cacheJSON);
-      logLoading("✓ Format cache loaded from cache.json", "log-ok");
+      logLoading("[ok] Format cache loaded from cache.json", "log-ok");
       console.log("[convert] Loaded format cache from cache.json");
     } else {
       throw new Error("No cache.json");
     }
   } catch {
-    logLoading("⊘ No cache — will init handlers individually", "log-skip");
+    logLoading("[skip] No cache -- will init handlers individually", "log-skip");
     console.warn(
       "Missing supported format precache.\n\n" +
       "Consider saving the output of printSupportedFormatCache() to cache.json."
@@ -713,7 +764,7 @@ if (ui.modeToggleButton) {
 async function attemptConvertPath (files: FileData[], path: ConvertPathNode[]) {
 
   ui.popupBox.innerHTML = `<h2>Finding conversion route...</h2>
-    <p>Trying <b>${path.map(c => c.format.format).join(" → ")}</b>...</p>`;
+    <p>Trying <b>${path.map(c => c.format.format).join(" -> ")}</b>...</p>`;
 
   for (let i = 0; i < path.length - 1; i ++) {
     const handler = path[i + 1].handler;
@@ -738,7 +789,7 @@ async function attemptConvertPath (files: FileData[], path: ConvertPathNode[]) {
       if (files.some(c => !c.bytes.length)) throw "Output is empty.";
     } catch (e) {
       console.log(path.map(c => c.format.format));
-      console.error(handler.name, `${path[i].format.format} → ${path[i + 1].format.format}`, e);
+      console.error(handler.name, `${path[i].format.format} -> ${path[i + 1].format.format}`, e);
       ui.popupBox.innerHTML = `<h2>Finding conversion route...</h2>
         <p>Looking for a valid path...</p>`;
       await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
@@ -824,7 +875,7 @@ ui.convertButton.onclick = async function () {
 
     window.showPopup(
       `<h2>Converted ${inputOption.format.format} to ${outputOption.format.format}!</h2>` +
-      `<p>Path used: <b>${output.path.map(c => c.format.format).join(" → ")}</b>.</p>\n` +
+      `<p>Path used: <b>${output.path.map(c => c.format.format).join(" -> ")}</b>.</p>\n` +
       `<button onclick="window.hidePopup()">OK</button>`
     );
 
