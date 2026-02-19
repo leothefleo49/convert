@@ -31,7 +31,23 @@ const ui = {
   outputSearch: document.querySelector("#search-to") as HTMLInputElement,
   popupBox: document.querySelector("#popup") as HTMLDivElement,
   popupBackground: document.querySelector("#popup-bg") as HTMLDivElement,
-  filterButtons: document.querySelectorAll(".filter-btn") as NodeListOf<HTMLButtonElement>
+  filterButtons: document.querySelectorAll(".filter-btn") as NodeListOf<HTMLButtonElement>,
+  // New UI elements
+  themeToggle: document.querySelector("#theme-toggle") as HTMLButtonElement,
+  settingsToggle: document.querySelector("#settings-toggle") as HTMLButtonElement,
+  settingsDrawer: document.querySelector("#settings-drawer") as HTMLDivElement,
+  accentColors: document.querySelectorAll(".color-dot") as NodeListOf<HTMLButtonElement>,
+  customAccent: document.querySelector("#custom-accent") as HTMLInputElement,
+  previewPanel: document.querySelector("#preview-panel") as HTMLDivElement,
+  previewContent: document.querySelector("#preview-content") as HTMLDivElement,
+  previewClose: document.querySelector("#preview-close") as HTMLButtonElement,
+  syncInfoBtn: document.querySelector("#sync-info-btn") as HTMLButtonElement,
+  formatCount: document.querySelector("#format-count") as HTMLSpanElement,
+  dropIcon: document.querySelector("#drop-icon") as HTMLDivElement,
+  fileInfo: document.querySelector("#file-info") as HTMLDivElement,
+  fileName: document.querySelector("#file-name") as HTMLSpanElement,
+  fileSize: document.querySelector("#file-size") as HTMLSpanElement,
+  fileTypeBadge: document.querySelector("#file-type-badge") as HTMLSpanElement,
 };
 
 /** Current contributor filter: "all", "new", or "original" */
@@ -99,6 +115,144 @@ ui.filterButtons.forEach(btn => {
   });
 });
 
+// ──── Theme Toggle ────
+function applyTheme(theme: string) {
+  document.documentElement.setAttribute("data-theme", theme);
+  ui.themeToggle.textContent = theme === "dark" ? "☀" : "☽";
+  localStorage.setItem("convert-theme", theme);
+}
+// Restore saved theme
+const savedTheme = localStorage.getItem("convert-theme") || "dark";
+applyTheme(savedTheme);
+
+ui.themeToggle.addEventListener("click", () => {
+  const current = document.documentElement.getAttribute("data-theme");
+  applyTheme(current === "dark" ? "light" : "dark");
+});
+
+// ──── Settings Drawer Toggle ────
+ui.settingsToggle.addEventListener("click", () => {
+  ui.settingsDrawer.classList.toggle("hidden");
+});
+
+// ──── Accent Color Picker ────
+function applyAccent(color: string) {
+  document.documentElement.style.setProperty("--accent", color);
+  document.documentElement.style.setProperty("--highlight-color", color);
+  localStorage.setItem("convert-accent", color);
+  // Update active dot
+  ui.accentColors.forEach(dot => {
+    dot.classList.toggle("active", dot.getAttribute("data-color") === color);
+  });
+  ui.customAccent.value = color;
+}
+// Restore saved accent
+const savedAccent = localStorage.getItem("convert-accent") || "#6C5CE7";
+applyAccent(savedAccent);
+
+ui.accentColors.forEach(dot => {
+  dot.addEventListener("click", () => {
+    const color = dot.getAttribute("data-color");
+    if (color) applyAccent(color);
+  });
+});
+ui.customAccent.addEventListener("input", () => {
+  applyAccent(ui.customAccent.value);
+});
+
+// ──── Upstream Sync Info ────
+if (ui.syncInfoBtn) {
+  ui.syncInfoBtn.addEventListener("click", () => {
+    window.showPopup(`
+      <h2>How to Sync Upstream</h2>
+      <p style="text-align:left;color:var(--text-secondary);font-size:0.9rem;">
+        Pull the latest changes from the original repo without losing your work:
+      </p>
+      <div class="sync-commands">
+        <code>git fetch upstream</code>
+        <code>git merge upstream/master</code>
+        <code>git push origin master</code>
+      </div>
+      <p style="text-align:left;color:var(--text-secondary);font-size:0.85rem;">
+        If there are conflicts, resolve them in VS Code, then <code style="color:var(--accent)">git add .</code> and <code style="color:var(--accent)">git commit</code>.
+      </p>
+      <button onclick="window.hidePopup()">Got it</button>
+    `);
+  });
+}
+
+// ──── Preview Close ────
+if (ui.previewClose) {
+  ui.previewClose.addEventListener("click", () => {
+    ui.previewPanel.classList.add("hidden");
+    ui.previewContent.innerHTML = "";
+  });
+}
+
+// ──── Drag-over visual feedback ────
+ui.fileSelectArea.addEventListener("dragenter", (e) => {
+  e.preventDefault();
+  ui.fileSelectArea.classList.add("drag-over");
+});
+ui.fileSelectArea.addEventListener("dragleave", () => {
+  ui.fileSelectArea.classList.remove("drag-over");
+});
+ui.fileSelectArea.addEventListener("dragover", (e) => {
+  e.preventDefault();
+});
+ui.fileSelectArea.addEventListener("drop", () => {
+  ui.fileSelectArea.classList.remove("drag-over");
+});
+
+/** Format a byte size to a human-readable string */
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return bytes + " B";
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
+  if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + " MB";
+  return (bytes / (1024 * 1024 * 1024)).toFixed(2) + " GB";
+}
+
+/** Show a preview of the selected file */
+function showFilePreview(file: File) {
+  const url = URL.createObjectURL(file);
+  ui.previewContent.innerHTML = "";
+
+  if (file.type.startsWith("image/")) {
+    const img = document.createElement("img");
+    img.src = url;
+    img.alt = file.name;
+    ui.previewContent.appendChild(img);
+    ui.previewPanel.classList.remove("hidden");
+  } else if (file.type.startsWith("audio/")) {
+    const audio = document.createElement("audio");
+    audio.src = url;
+    audio.controls = true;
+    ui.previewContent.appendChild(audio);
+    ui.previewPanel.classList.remove("hidden");
+  } else if (file.type.startsWith("video/")) {
+    const video = document.createElement("video");
+    video.src = url;
+    video.controls = true;
+    video.style.maxWidth = "100%";
+    ui.previewContent.appendChild(video);
+    ui.previewPanel.classList.remove("hidden");
+  } else if (file.type === "application/pdf") {
+    const iframe = document.createElement("iframe");
+    iframe.src = url;
+    iframe.className = "pdf-frame";
+    ui.previewContent.appendChild(iframe);
+    ui.previewPanel.classList.remove("hidden");
+  } else if (file.type.startsWith("text/") || file.name.match(/\.(txt|md|json|xml|csv|tsv|yaml|yml|toml|ini|log|sh|bat|py|js|ts|html|css|sql|conf|cfg)$/i)) {
+    file.text().then(text => {
+      const pre = document.createElement("pre");
+      pre.textContent = text.slice(0, 50000); // limit preview size
+      ui.previewContent.appendChild(pre);
+      ui.previewPanel.classList.remove("hidden");
+    });
+  }
+  // else: no preview available, keep hidden
+}
+
 // Map clicks in the file selection area to the file input element
 ui.fileSelectArea.onclick = () => {
   ui.fileInput.click();
@@ -135,10 +289,25 @@ const fileSelectHandler = (event: Event) => {
   files.sort((a, b) => a.name === b.name ? 0 : (a.name < b.name ? -1 : 1));
   selectedFiles = files;
 
-  ui.fileSelectArea.innerHTML = `<h2>
-    ${files[0].name}
-    ${files.length > 1 ? `<br>... and ${files.length - 1} more` : ""}
-  </h2>`;
+  // Update the file info bar (keep the drop zone intact)
+  ui.fileSelectArea.classList.add("has-file");
+  if (ui.dropIcon) ui.dropIcon.style.display = "none";
+  const h2 = ui.fileSelectArea.querySelector("h2");
+  if (h2) h2.textContent = files.length > 1 ? `${files[0].name} ... and ${files.length - 1} more` : files[0].name;
+  const p = ui.fileSelectArea.querySelector("p");
+  if (p) p.style.display = "none";
+
+  // Show file info badges
+  if (ui.fileInfo) {
+    ui.fileInfo.classList.remove("hidden");
+    ui.fileName.textContent = files[0].name;
+    ui.fileSize.textContent = formatFileSize(files[0].size);
+    const ext = files[0].name.split(".").pop()?.toUpperCase() || files[0].type || "FILE";
+    ui.fileTypeBadge.textContent = ext;
+  }
+
+  // Show file preview
+  showFilePreview(files[0]);
 
   // Common MIME type adjustments (to match "mime" library)
   let mimeType = normalizeMimeType(files[0].type);
@@ -318,6 +487,15 @@ async function buildOptionList () {
   filterButtonList(ui.inputList, ui.inputSearch.value);
   filterButtonList(ui.outputList, ui.outputSearch.value);
 
+  // Update stats bar
+  if (ui.formatCount) {
+    const totalInputs = ui.inputList.querySelectorAll("button").length;
+    const totalOutputs = ui.outputList.querySelectorAll("button").length;
+    const myCount = ui.inputList.querySelectorAll("button[data-contributor]").length
+      + ui.outputList.querySelectorAll("button[data-contributor]").length;
+    ui.formatCount.textContent = `${totalInputs} input formats · ${totalOutputs} output formats · ${myCount} contributed by you`;
+  }
+
   window.hidePopup();
 
 }
@@ -341,10 +519,8 @@ ui.modeToggleButton.addEventListener("click", () => {
   simpleMode = !simpleMode;
   if (simpleMode) {
     ui.modeToggleButton.textContent = "Advanced mode";
-    document.body.style.setProperty("--highlight-color", "#1C77FF");
   } else {
     ui.modeToggleButton.textContent = "Simple mode";
-    document.body.style.setProperty("--highlight-color", "#FF6F1C");
   }
   buildOptionList();
 });

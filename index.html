@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
@@ -9,43 +9,113 @@
 </head>
 <body>
 
-  <input id="file-input" type="file">
+  <input id="file-input" type="file" multiple>
 
-  <div id="file-area">
-    <h2>Click to add your file</h2>
-    <p id="drop-hint-text">or drag and drop it here</p>
-  </div>
-  <div id="side-panel">
-    <button id="mode-button">Advanced mode</button>
-    <div id="filter-panel">
-      <span>Show:</span>
-      <button class="filter-btn active" data-filter="all">All</button>
-      <button class="filter-btn" data-filter="new">My additions</button>
-      <button class="filter-btn" data-filter="original">Original</button>
+  <!-- Top bar -->
+  <header id="top-bar">
+    <div id="top-bar-left">
+      <h1 id="logo">Convert<span class="accent">.</span>to<span class="accent">.</span>it</h1>
+    </div>
+    <div id="top-bar-right">
+      <button id="theme-toggle" title="Toggle dark/light mode">&#9790;</button>
+      <button id="settings-toggle" title="Settings">&#9881;</button>
+    </div>
+  </header>
+
+  <!-- Settings drawer -->
+  <div id="settings-drawer" class="hidden">
+    <div class="settings-section">
+      <h3>Accent Color</h3>
+      <div id="accent-colors">
+        <button class="color-dot active" data-color="#6C5CE7" style="background:#6C5CE7" title="Purple"></button>
+        <button class="color-dot" data-color="#0984E3" style="background:#0984E3" title="Blue"></button>
+        <button class="color-dot" data-color="#00B894" style="background:#00B894" title="Green"></button>
+        <button class="color-dot" data-color="#E17055" style="background:#E17055" title="Coral"></button>
+        <button class="color-dot" data-color="#FDCB6E" style="background:#FDCB6E" title="Yellow"></button>
+        <button class="color-dot" data-color="#E84393" style="background:#E84393" title="Pink"></button>
+        <button class="color-dot" data-color="#FF6B6B" style="background:#FF6B6B" title="Red"></button>
+        <button class="color-dot" data-color="#1C77FF" style="background:#1C77FF" title="Classic Blue"></button>
+      </div>
+      <label>Custom: <input type="color" id="custom-accent" value="#6C5CE7"></label>
+    </div>
+    <div class="settings-section">
+      <h3>Mode</h3>
+      <button id="mode-button">Advanced mode</button>
+    </div>
+    <div class="settings-section">
+      <h3>Filter Formats</h3>
+      <div id="filter-panel">
+        <button class="filter-btn active" data-filter="all">All</button>
+        <button class="filter-btn" data-filter="new">&#10024; My Additions</button>
+        <button class="filter-btn" data-filter="original">Original</button>
+      </div>
+    </div>
+    <div class="settings-section">
+      <h3>Upstream Sync</h3>
+      <p class="settings-hint">Pull latest from the original repo without losing your work.</p>
+      <button id="sync-info-btn">How to sync upstream</button>
     </div>
   </div>
 
+  <!-- File drop zone -->
+  <div id="file-area">
+    <div id="drop-icon">
+      <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+        <polyline points="17 8 12 3 7 8"/>
+        <line x1="12" y1="3" x2="12" y2="15"/>
+      </svg>
+    </div>
+    <h2>Drop your file here</h2>
+    <p id="drop-hint-text">or click to browse</p>
+    <div id="file-info" class="hidden">
+      <span id="file-name"></span>
+      <span id="file-size"></span>
+      <span id="file-type-badge"></span>
+    </div>
+  </div>
+
+  <!-- Preview panel (hidden by default) -->
+  <div id="preview-panel" class="hidden">
+    <div id="preview-header">
+      <h3>File Preview</h3>
+      <button id="preview-close">&times;</button>
+    </div>
+    <div id="preview-content"></div>
+  </div>
+
+  <!-- Format selection -->
   <div id="format-containers">
 
     <div id="from-container" class="format-container">
       <h2>Convert from:</h2>
-      <input type="text" id="search-from" class="search" placeholder="Search">
-      <div id="from-list" class="format-list">
+      <input type="text" id="search-from" class="search" placeholder="&#128269; Search input formats...">
+      <div id="from-list" class="format-list"></div>
+    </div>
 
-      </div>
+    <div id="arrow-divider">
+      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="5" y1="12" x2="19" y2="12"/>
+        <polyline points="12 5 19 12 12 19"/>
+      </svg>
     </div>
 
     <div id="to-container" class="format-container">
       <h2>Convert to:</h2>
-      <input type="text" id="search-to" class="search" placeholder="Search">
-      <div id="to-list" class="format-list">
-
-      </div>
+      <input type="text" id="search-to" class="search" placeholder="&#128269; Search output formats...">
+      <div id="to-list" class="format-list"></div>
     </div>
 
   </div>
 
-  <button id="convert-button" class="disabled">Convert</button>
+  <button id="convert-button" class="disabled">
+    <span id="convert-text">Convert</span>
+  </button>
+
+  <!-- Stats bar -->
+  <div id="stats-bar">
+    <span id="format-count"></span>
+  </div>
 
   <div id="popup-bg"></div>
   <div id="popup">
