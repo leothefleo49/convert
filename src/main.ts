@@ -118,37 +118,45 @@ ui.filterButtons.forEach(btn => {
 // ──── Theme Toggle ────
 function applyTheme(theme: string) {
   document.documentElement.setAttribute("data-theme", theme);
-  ui.themeToggle.textContent = theme === "dark" ? "☀" : "☽";
-  localStorage.setItem("convert-theme", theme);
+  if (ui.themeToggle) ui.themeToggle.textContent = theme === "dark" ? "☀" : "☽";
+  try { localStorage.setItem("convert-theme", theme); } catch {}
 }
 // Restore saved theme
-const savedTheme = localStorage.getItem("convert-theme") || "dark";
-applyTheme(savedTheme);
+try {
+  const savedTheme = localStorage.getItem("convert-theme") || "dark";
+  applyTheme(savedTheme);
+} catch { applyTheme("dark"); }
 
-ui.themeToggle.addEventListener("click", () => {
-  const current = document.documentElement.getAttribute("data-theme");
-  applyTheme(current === "dark" ? "light" : "dark");
-});
+if (ui.themeToggle) {
+  ui.themeToggle.addEventListener("click", () => {
+    const current = document.documentElement.getAttribute("data-theme");
+    applyTheme(current === "dark" ? "light" : "dark");
+  });
+}
 
 // ──── Settings Drawer Toggle ────
-ui.settingsToggle.addEventListener("click", () => {
-  ui.settingsDrawer.classList.toggle("hidden");
-});
+if (ui.settingsToggle && ui.settingsDrawer) {
+  ui.settingsToggle.addEventListener("click", () => {
+    ui.settingsDrawer.classList.toggle("hidden");
+  });
+}
 
 // ──── Accent Color Picker ────
 function applyAccent(color: string) {
   document.documentElement.style.setProperty("--accent", color);
   document.documentElement.style.setProperty("--highlight-color", color);
-  localStorage.setItem("convert-accent", color);
+  try { localStorage.setItem("convert-accent", color); } catch {}
   // Update active dot
   ui.accentColors.forEach(dot => {
     dot.classList.toggle("active", dot.getAttribute("data-color") === color);
   });
-  ui.customAccent.value = color;
+  if (ui.customAccent) ui.customAccent.value = color;
 }
 // Restore saved accent
-const savedAccent = localStorage.getItem("convert-accent") || "#6C5CE7";
-applyAccent(savedAccent);
+try {
+  const savedAccent = localStorage.getItem("convert-accent") || "#6C5CE7";
+  applyAccent(savedAccent);
+} catch { applyAccent("#6C5CE7"); }
 
 ui.accentColors.forEach(dot => {
   dot.addEventListener("click", () => {
@@ -156,9 +164,11 @@ ui.accentColors.forEach(dot => {
     if (color) applyAccent(color);
   });
 });
-ui.customAccent.addEventListener("input", () => {
-  applyAccent(ui.customAccent.value);
-});
+if (ui.customAccent) {
+  ui.customAccent.addEventListener("input", () => {
+    applyAccent(ui.customAccent.value);
+  });
+}
 
 // ──── Upstream Sync Info ────
 if (ui.syncInfoBtn) {
@@ -384,22 +394,50 @@ window.printSupportedFormatCache = () => {
 }
 
 
+/** Race a promise against a timeout. Rejects if the promise doesn't settle in time. */
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error(`Timeout: ${label} took longer than ${ms}ms`)), ms)
+    )
+  ]);
+}
+
 async function buildOptionList () {
 
   allOptions.length = 0;
   ui.inputList.innerHTML = "";
   ui.outputList.innerHTML = "";
 
+  const totalHandlers = handlers.length;
+  let loadedCount = 0;
+
   for (const handler of handlers) {
     if (!window.supportedFormatCache.has(handler.name)) {
+      // Update the loading popup with progress
+      loadedCount++;
+      ui.popupBox.innerHTML = `<h2>Loading tools...</h2>
+        <p style="color:var(--text-secondary);font-size:0.85rem;">
+          Initializing <b>${handler.name}</b>
+          <br><span style="font-size:0.75rem;color:var(--text-muted)">${loadedCount} / ${totalHandlers}</span>
+        </p>
+        <div style="background:var(--bg-input,#333);border-radius:8px;height:6px;margin-top:12px;overflow:hidden">
+          <div style="background:var(--accent,#6C5CE7);height:100%;width:${Math.round(loadedCount/totalHandlers*100)}%;transition:width 0.2s"></div>
+        </div>`;
       console.warn(`Cache miss for formats of handler "${handler.name}".`);
       try {
-        await handler.init();
-      } catch (_) { continue; }
+        await withTimeout(handler.init(), 10000, handler.name);
+      } catch (e) {
+        console.warn(`Skipping handler "${handler.name}":`, e);
+        continue;
+      }
       if (handler.supportedFormats) {
         window.supportedFormatCache.set(handler.name, handler.supportedFormats);
         console.info(`Updated supported format cache for "${handler.name}".`);
       }
+    } else {
+      loadedCount++;
     }
     const supportedFormats = window.supportedFormatCache.get(handler.name);
     if (!supportedFormats) {
@@ -496,8 +534,6 @@ async function buildOptionList () {
     ui.formatCount.textContent = `${totalInputs} input formats · ${totalOutputs} output formats · ${myCount} contributed by you`;
   }
 
-  window.hidePopup();
-
 }
 
 (async () => {
@@ -509,21 +545,29 @@ async function buildOptionList () {
       "Missing supported format precache.\n\n" +
       "Consider saving the output of printSupportedFormatCache() to cache.json."
     );
-  } finally {
+  }
+  try {
     await buildOptionList();
     console.log("Built initial format list.");
+  } catch (e) {
+    console.error("Error building option list:", e);
+  } finally {
+    // Always dismiss the loading overlay so the page is usable
+    window.hidePopup();
   }
 })();
 
-ui.modeToggleButton.addEventListener("click", () => {
-  simpleMode = !simpleMode;
-  if (simpleMode) {
-    ui.modeToggleButton.textContent = "Advanced mode";
-  } else {
-    ui.modeToggleButton.textContent = "Simple mode";
-  }
-  buildOptionList();
-});
+if (ui.modeToggleButton) {
+  ui.modeToggleButton.addEventListener("click", () => {
+    simpleMode = !simpleMode;
+    if (simpleMode) {
+      ui.modeToggleButton.textContent = "Advanced mode";
+    } else {
+      ui.modeToggleButton.textContent = "Simple mode";
+    }
+    buildOptionList();
+  });
+}
 
 async function attemptConvertPath (files: FileData[], path: ConvertPathNode[]) {
 
