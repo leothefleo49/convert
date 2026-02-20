@@ -75,6 +75,7 @@ export async function loadHandlers(
   await load("unitConvert",      async () => new (await import("./unitConvert.ts")).default());
   await load("gzip",             async () => new (await import("./gzip.ts")).default());
   await load("qrcode",           async () => new (await import("./qrcode.ts")).default());
+  await load("csvConvert",       async () => new (await import("./csvConvert.ts")).default());
   await load("textToPdf",        async () => new (await import("./textToPdf.ts")).default());
   await load("textFormats",      async () => new (await import("./textFormats.ts")).default());
   await load("textStats",        async () => new (await import("./textStats.ts")).default());

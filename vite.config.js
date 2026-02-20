@@ -39,8 +39,9 @@ export default defineConfig(({ command }) => ({
       buffer: "buffer/"
     }
   },
-  // Use "/" for local dev, "/convert/" for production build
-  base: command === "serve" ? "/" : "/convert/",
+  // Use "/" for local dev and portable builds, "/convert/" for GitHub Pages.
+  // Set VITE_BASE env var to override (e.g. VITE_BASE=/ for offline release builds).
+  base: process.env.VITE_BASE ?? (command === "serve" ? "/" : "/convert/"),
   plugins: [
     // In dev mode the wasm/js assets are served at root (/) not at /convert/,
     // but the handler source files hard-code /convert/wasm and /convert/js.

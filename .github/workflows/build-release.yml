@@ -1,0 +1,128 @@
+name: Build & Release Offline Package
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Triggered MANUALLY from the GitHub Actions UI — never auto-releases.
+#
+# How to create a release:
+#   1. Go to your repo on GitHub
+#   2. Click the "Actions" tab
+#   3. Click "Build & Release Offline Package" in the left sidebar
+#   4. Click "Run workflow" (top-right of the workflow list)
+#   5. Fill in the tag (e.g. v1.2.0) and optional release notes
+#   6. Click the green "Run workflow" button
+#
+# It will build the app, create a ZIP, and publish it as a GitHub Release.
+# Anyone can then download the ZIP from the Releases page with one click.
+# ─────────────────────────────────────────────────────────────────────────────
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag (e.g. v1.0.0)'
+        required: true
+        default: 'v1.0.0'
+      release_name:
+        description: 'Release title (leave blank to use tag)'
+        required: false
+        default: ''
+      release_notes:
+        description: 'What changed in this release (optional)'
+        required: false
+        default: ''
+      prerelease:
+        description: 'Mark as pre-release?'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
+
+permissions:
+  contents: write   # needed to create releases and upload assets
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+
+    steps:
+      # ── 1. Checkout (with submodules — required for espeakng, libopenmpt, etc.)
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      # ── 2. Set up Node.js (matches the project's engine)
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      # ── 3. Install dependencies
+      - name: Install dependencies
+        run: npm ci
+
+      # ── 4. Build with base "/" so paths work from localhost root
+      - name: Build portable app
+        run: npm run build:portable
+        env:
+          # Tells vite.config.js to use "/" as the base URL instead of "/convert/"
+          # so the offline server can serve it from http://localhost:8080/
+          VITE_BASE: "/"
+
+      # ── 5. Generate the format cache (skipped on error — non-fatal)
+      - name: Generate format cache
+        run: node buildCache.js dist/cache.json || echo "Cache generation skipped (non-fatal)"
+
+      # ── 6. Copy offline launcher scripts into the dist folder
+      - name: Add offline launchers
+        run: |
+          cp scripts/serve.js          dist/serve.js
+          cp scripts/start.bat         dist/start.bat
+          cp scripts/launch.sh          dist/launch.sh
+          cp scripts/README-offline.txt dist/README-offline.txt
+          chmod +x dist/launch.sh
+
+      # ── 7. Package everything into a ZIP
+      - name: Create release ZIP
+        run: |
+          TAG="${{ github.event.inputs.tag }}"
+          cd dist
+          zip -r "../convert-offline-${TAG}.zip" .
+          cd ..
+          echo "ZIP created: convert-offline-${TAG}.zip"
+          ls -lh "convert-offline-${TAG}.zip"
+
+      # ── 8. Publish the GitHub Release with the ZIP attached
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.inputs.tag }}
+          name: ${{ github.event.inputs.release_name != '' && github.event.inputs.release_name || format('Convert Anything {0}', github.event.inputs.tag) }}
+          prerelease: ${{ github.event.inputs.prerelease == 'true' }}
+          body: |
+            ## Offline Build — No WiFi Required After Download
+
+            Download the ZIP below, unzip it, then:
+
+            | Platform | How to run |
+            |---|---|
+            | **Windows** | Double-click `start.bat` |
+            | **Mac** | Right-click `start.sh` → Open With Terminal (or run `bash start.sh`) |
+            | **Linux** | Run `bash start.sh` in a terminal |
+            | **Any platform** | Run `node serve.js` then open `http://localhost:8080/` |
+
+            **One requirement:** [Node.js LTS](https://nodejs.org) must be installed.
+
+            Your browser opens automatically. Your files **never leave your computer.**
+
+            ---
+
+            ${{ github.event.inputs.release_notes != '' && github.event.inputs.release_notes || 'No release notes provided.' }}
+
+            ---
+            Built from commit [`${{ github.sha }}`](https://github.com/${{ github.repository }}/commit/${{ github.sha }})
+          files: convert-offline-${{ github.event.inputs.tag }}.zip
+          fail_on_unmatched_files: true

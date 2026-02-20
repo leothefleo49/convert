@@ -36,6 +36,41 @@ Done.
 
 ---
 
+## One-Click Download — Pre-Built Offline ZIP
+
+Don't want to install Node.js or deal with any of that? **Download a pre-built release** — just unzip and double-click.
+
+> **👉 [Go to Releases](https://github.com/leothefleo49/convert/releases) → click the `.zip` file under the latest release**
+
+Inside the ZIP:
+
+| File | What it does |
+|---|---|
+| `start.bat` | **Windows** — double-click to launch |
+| `launch.sh` | **Mac / Linux** — double-click or `bash launch.sh` |
+| `serve.js` | Manual launch — `node serve.js` from any terminal |
+| `README-offline.txt` | Quick reference guide |
+| everything else | The built app itself |
+
+Once it starts, your browser opens automatically to `http://localhost:8080/`. From that point on you need **zero internet** — everything runs on your machine.
+
+**One requirement:** [Node.js LTS](https://nodejs.org) must be installed (free, one-time).
+
+### Creating a release in your own fork
+
+If you've forked this repo, you can publish your own release ZIP with one click:
+
+1. On GitHub, click the **Actions** tab
+2. Click **"Build & Release Offline Package"** in the left list
+3. Click **"Run workflow"** (top right)
+4. Fill in a version tag like `v1.0.0` and click **Run workflow**
+
+GitHub will build the app, package it into a ZIP, and publish it as a Release automatically. Anyone can then download it from your repo's Releases page.
+
+> **Mac / Linux users:** run `bash launch.sh` from the unzipped folder.
+
+---
+
 ## Download and Run It Yourself (Offline / Local)
 
 You may want a local copy if you'd like it to work offline, or if you just prefer not to rely on a hosted site.
@@ -128,29 +163,51 @@ On your very first load, the app needs to build an internal list of all supporte
 
 This fork adds a large number of new conversions and improvements on top of the original p2r3/convert.
 
-### New File Formats You Can Convert
+### Complete Format Support
+
+This fork includes every format from the original p2r3/convert **plus** a large set of new ones. Here's the full picture:
+
+#### Original formats (from p2r3/convert)
+
+| Category | What you can convert |
+|---|---|
+| **Images** | PNG, JPEG, WebP, GIF, BMP, TIFF, HEIC, AVIF, SVG, ICO, QOI, VTF (Valve Texture), CgBI (iPhone PNG) → any of the above |
+| **Video** | MP4, WebM, MKV, AVI, MOV, WMV, FLV, OGV, 3GP, TS → any video or audio format |
+| **Audio** | MP3, WAV, OGG/Vorbis, FLAC, Opus, AAC, M4A, QOA, FLO, ALS (Ableton Live), MOD/XM/IT/S3M tracker music → any audio |
+| **Documents** | PDF → images / text / Word; DOCX ↔ Markdown / HTML; PPTX (build from images) |
+| **3D models** | OBJ, STL, GLTF, GLB, FBX, DAE, PLY, 3MF — view and convert between them |
+| **Data / code** | JSON ↔ YAML ↔ CSV; ZIP ↔ any files; NBT (Minecraft) ↔ JSON; SQLite → JSON / CSV |
+| **Esoteric** | Scratch (.sb3) → HTML, Minecraft map image, PE (.exe) → ZIP, BAT → EXE, Python Turtle → SVG, BSOR Beat Saber replay → video |
+| **Text utilities** | Text → speech (eSpeak), text encoding (UTF-8/16/32/Latin), text → shell script |
+| **Re-label** | Rename file extensions without conversion — ZIP ↔ DOCX/XLSX/PPTX/JAR/CBZ etc. |
+
+#### New formats added in this fork
 
 | Feature | What it converts |
 |---|---|
-| **Text / Markdown / HTML → PDF** | Prints any text file to a clean PDF. No Word, no LaTeX, no upload needed. |
-| **Subtitle converter** | SRT ↔ VTT ↔ ASS/SSA ↔ SBV ↔ LRC lyrics — all subtitle formats, all directions. |
-| **Config file converter** | JSON ↔ YAML ↔ TOML ↔ INI ↔ .env ↔ .properties files, losslessly. |
-| **Code transpiler** | TypeScript → JS, TSX → JS, SCSS → CSS, JSX → JS, plus minifier/prettifier for HTML/CSS/JS/JSON. |
-| **Text ciphers & encodings** | Text ↔ Morse code, Braille, ROT13, ROT47, NATO phonetic alphabet, Caesar cipher, binary. |
-| **Color converter** | HEX ↔ RGB ↔ HSL ↔ HSV ↔ CMYK — paste one color or a hundred, one per line. |
-| **Unit converter** | Length, Weight, Temperature, Volume, Speed, Area, Data size, Time, Pressure, Energy. |
-| **Hash / checksum** | Any file → MD5, SHA-1, SHA-256, SHA-384, SHA-512, CRC32, or Adler32 hash. |
-| **QR Code** | Text → QR code PNG image. QR code image → text (using browser BarcodeDetector). |
-| **Lightweight text formats** | Markdown ↔ HTML ↔ Plain text, works fully offline. |
-| **Text statistics** | Any text file → word count, line count, character count, reading time estimate. |
-| **Image metadata** | Any image → JSON export of all EXIF/metadata. |
-| **Font metadata** | TTF / OTF / WOFF → JSON info (font name, family, version, supported glyphs). |
-| **Math notation** | LaTeX ↔ MathML ↔ plain-text math expressions. |
-| **Encoding/decoding** | Base64, URL encoding, HTML entities — encode and decode. |
-| **GZip compression** | Any file → .gz, and .gz → original file. |
-| **3D model extras** | Additional 3D model formats via Three.js. |
-| **PDF text extractor** | Text-based PDFs → plain text, instantly, no OCR, no upload. |
-| **Game zip renamer** | Standardizes ROM / game archive filenames. |
+| **CSV / TSV / SSV ↔ JSON** | Full RFC 4180 CSV parser — handles quoted fields, embedded commas, multi-line values |
+| **CSV / TSV / SSV → Markdown table** | Clean pipe-table output, auto-padded columns |
+| **CSV / TSV / SSV → HTML table** | Styled HTML with proper escaping |
+| **CSV ↔ TSV ↔ SSV** | Re-delimit between comma, tab, and semicolon (European Excel) formats |
+| **Text / Markdown / HTML → PDF** | Pure in-browser PDF generation, auto-scales font to fit, no upload needed |
+| **Subtitle converter** | SRT ↔ VTT ↔ ASS/SSA ↔ SBV ↔ LRC lyrics — all directions |
+| **Config file converter** | JSON ↔ YAML ↔ TOML ↔ INI ↔ .env ↔ .properties — losslessly |
+| **Code transpiler** | TypeScript → JS, TSX → JS, SCSS → CSS, JSX → JS, minify/prettify HTML/CSS/JS/JSON |
+| **Text ciphers** | Text ↔ Morse code, Braille (Grade 1), ROT13, ROT47, NATO phonetic, Caesar cipher, binary |
+| **Color converter** | HEX ↔ RGB ↔ HSL ↔ HSV ↔ CMYK — paste one color or a hundred, one per line |
+| **Unit converter** | Length, Weight, Temperature, Volume, Speed, Area, Data size, Time, Pressure, Energy |
+| **Hash / checksum** | Any file → MD5, SHA-1, SHA-256, SHA-384, SHA-512, CRC32, Adler32 |
+| **QR Code** | Text → QR code PNG; QR code image → text |
+| **Text format bridging** | Markdown ↔ HTML ↔ Plain text ↔ CSV ↔ JSON (lightweight, offline) |
+| **Text statistics** | Any text → word count, line count, character count, reading time |
+| **Image metadata** | Any image → full EXIF/metadata JSON export |
+| **Font metadata** | TTF / OTF / WOFF → JSON (name, family, version, glyph list) |
+| **Math notation** | LaTeX ↔ MathML ↔ plain-text math |
+| **Encoding / decoding** | Base64, URL encoding, HTML entities — encode and decode |
+| **GZip** | Any file → .gz archive; .gz → original |
+| **PDF text extractor** | Text-based PDFs → plain text instantly, no OCR needed |
+| **Game zip renamer** | Standardizes ROM / game archive filenames |
+| **Extra 3D formats** | Additional Three.js-powered 3D model conversions |
 
 ### Better Output Quality
 
