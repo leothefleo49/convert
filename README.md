@@ -1,9 +1,9 @@
-# Convert Anything — leothefleo49's Enhanced Fork
+# Convert.It.Now — leothefleo49's Enhanced Fork
 
 > **Based on [p2r3/convert](https://github.com/p2r3/convert) — the truly universal file converter — with a huge pile of extra features added on top.**
 
-**Live demo:**
-👉 **https://leothefleo49.github.io/convert** *(or run it on your own computer — see below)*
+**Live app:**
+**https://leothefleo49.github.io/convert** *(or run it on your own computer — see below)*
 
 ---
 
@@ -40,7 +40,7 @@ Done.
 
 Don't want to install Node.js or deal with any of that? **Download a pre-built release** — just unzip and double-click.
 
-> **👉 [Go to Releases](https://github.com/leothefleo49/convert/releases) → click the `.zip` file under the latest release**
+> **[Go to Releases](https://github.com/leothefleo49/convert/releases) — click the `.zip` file under the latest release**
 
 Inside the ZIP:
 
