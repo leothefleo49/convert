@@ -222,8 +222,35 @@ class FFmpegHandler implements FormatHandler {
     if (outputFormat.mime === "video/mp4") {
       command.push("-pix_fmt", "yuv420p");
     }
+    // Quality presets — applied before caller-supplied args so they can be overridden
+    if (!args) {
+      const mime = outputFormat.mime;
+      if (mime === "audio/mpeg") {
+        // MP3: VBR mode 0 (~245 kbps), highest quality, smaller than CBR 320k
+        command.push("-codec:a", "libmp3lame", "-q:a", "0");
+      } else if (mime === "audio/ogg") {
+        // Vorbis: quality 9 (~320 kbps)
+        command.push("-codec:a", "libvorbis", "-q:a", "9");
+      } else if (mime === "audio/opus") {
+        command.push("-codec:a", "libopus", "-b:a", "192k", "-vbr", "on");
+      } else if (mime === "audio/aac" || outputFormat.format === "aac") {
+        command.push("-b:a", "256k");
+      } else if (mime === "audio/flac") {
+        command.push("-compression_level", "8");
+      } else if (mime === "audio/wav" || outputFormat.format === "wav") {
+        command.push("-acodec", "pcm_s16le");
+      } else if (
+        (mime === "video/webm" || mime === "video/x-matroska")
+        && !forceFPS
+      ) {
+        // WebM/MKV video: VP9 CRF 24 (high quality)
+        command.push("-crf", "24", "-b:v", "0");
+      } else if (mime === "image/jpeg" || outputFormat.format === "jpg" || outputFormat.format === "jpeg") {
+        command.push("-q:v", "2"); // JPEG quality 2/31 (near lossless for FFmpeg)
+      }
+    }
     if (args) command.push(...args);
-    command.push("output");
+    command.push("output"); // output filename must always be last
 
     const stdout = await this.getStdout(async () => {
       await this.#ffmpeg!.exec(command);

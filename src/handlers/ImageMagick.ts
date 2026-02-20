@@ -2,6 +2,7 @@ import {
   initializeImageMagick,
   Magick,
   MagickFormat,
+  MagickImage,
   MagickImageCollection,
   MagickReadSettings
 } from "@imagemagick/magick-wasm";
@@ -90,6 +91,11 @@ class ImageMagickHandler implements FormatHandler {
             while (fileCollection.length > 0) {
               const image = fileCollection.shift();
               if (!image) break;
+              // Preserve high quality for lossy output formats
+              const lossyExts = ["jpg", "jpeg", "webp", "heic"];
+              if (lossyExts.includes(outputFormat.extension.toLowerCase())) {
+                (image as unknown as MagickImage).quality = 95;
+              }
               outputCollection.push(image);
             }
           });

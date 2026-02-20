@@ -1,4 +1,5 @@
 import type { FileFormat, FileData, FormatHandler, ConvertPathNode } from "./FormatHandler.js";
+import type * as THREE from "three";
 import normalizeMimeType from "./normalizeMimeType.js";
 import { TraversionGraph } from "./TraversionGraph.js";
 import { FORK_CONFIG, type SyncSource } from "./fork-config.ts";
@@ -528,9 +529,9 @@ function showUpstreamManager() {
 
   const syncAllSection = FORK_CONFIG.syncSources.length > 1 ? `
       <div class="um-section">
-        <h3>Sync All Sources</h3>
-        <p class="um-hint">Triggers all sync workflows in order (root → nearest parent).</p>
-        <button id="um-sync-all" class="um-btn-sm um-btn-accent">Sync All Sources</button>
+        <h3>Sync from Nearest Parent</h3>
+        <p class="um-hint">Triggers a sync from your immediate parent repo only. Syncing further ancestors requires those repo owners to run their own sync workflows first. Status cards above show how far behind you are from each level.</p>
+        <button id="um-sync-all" class="um-btn-sm um-btn-accent">Sync from Parent (${FORK_CONFIG.syncSources[FORK_CONFIG.syncSources.length-1].displayName})</button>
       </div>` : "";
 
   const compareButtons = FORK_CONFIG.syncSources.map(src =>
@@ -611,20 +612,17 @@ function showUpstreamManager() {
     if (savedToken) _umCheckStatusForSource(statusEl, src);
   });
 
-  // Sync all sources (shown only when there are multiple sources in the chain)
+  // Sync from nearest parent only (shown when chain has multiple sources)
+  // NOTE: further ancestors can only be synced by their own owners, not from here.
   const syncAllBtn = panel.querySelector<HTMLButtonElement>("#um-sync-all");
   if (syncAllBtn) {
     syncAllBtn.addEventListener("click", async () => {
       if (!getGhToken()) { alert("Please enter and save your GitHub token first."); return; }
-      syncAllBtn.disabled = true; syncAllBtn.textContent = "Triggering all…";
-      for (let i = 0; i < FORK_CONFIG.syncSources.length; i++) {
-        const src = FORK_CONFIG.syncSources[i];
-        const dummyMsg = document.createElement("p");
-        await _umTriggerSyncForSource(syncAllBtn, false, dummyMsg, src);
-        if (i < FORK_CONFIG.syncSources.length - 1) await new Promise(r => setTimeout(r, 2000));
-      }
-      syncAllBtn.textContent = "All triggered.";
-      setTimeout(() => { syncAllBtn.disabled = false; syncAllBtn.textContent = "Sync All Sources"; }, 4000);
+      syncAllBtn.disabled = true;
+      // Trigger ONLY the nearest parent (last entry in syncSources)
+      const parentSrc = FORK_CONFIG.syncSources[FORK_CONFIG.syncSources.length - 1];
+      const msgEl = panel.querySelector<HTMLElement>(`.um-trigger-msg[data-src="${FORK_CONFIG.syncSources.length - 1}"]`)!;
+      await _umTriggerSyncForSource(syncAllBtn, false, msgEl, parentSrc);
     });
   }
 

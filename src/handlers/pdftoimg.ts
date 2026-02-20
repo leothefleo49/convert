@@ -48,7 +48,8 @@ class pdftoimgHandler implements FormatHandler {
 
       const images = await pdfToImg(url, {
         imgType: outputFormat.format,
-        pages: "all"
+        pages: "all",
+        scale: 2, // 2× scale = 144 DPI (default 72 DPI is blurry for text-heavy PDFs)
       });
 
       const baseName = inputFile.name.split(".")[0];
