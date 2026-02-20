@@ -3,8 +3,12 @@ import { PriorityQueue } from './PriorityQueue.ts';
 
 interface QueueNode {
     index: number;
+    /** f = gcost + heuristic — used for priority queue ordering */
     cost: number;
+    /** g = actual cost from start — used for path result and logging */
+    gcost: number;
     path: ConvertPathNode[];
+    /** Only used in multi-path (simple=false) mode */
     visitedBorder: number;
 };
 interface CategoryChangeCost {
@@ -284,18 +288,37 @@ export class TraversionGraph {
         this.listeners.forEach(l => l(state, path));
     }
 
+    /**
+     * A* heuristic: estimates minimum remaining cost from `current` to `target`.
+     * Admissible: never overestimates (uses the minimum possible cost per step).
+     * Guides search toward the target category, dramatically reducing iterations.
+     */
+    private heuristic(current: FileFormat, target: FileFormat): number {
+        if (current.mime === target.mime) return 0;
+        const currentCats = [current.category ?? current.mime.split("/")[0]].flat();
+        const targetCats = [target.category ?? target.mime.split("/")[0]].flat();
+        // If already in the same category as target, cost within DEPTH_COST range
+        if (currentCats.some(c => targetCats.includes(c))) return DEPTH_COST;
+        // Different category — estimate one extra conversion step plus min category change cost
+        return DEPTH_COST + DEFAULT_CATEGORY_CHANGE_COST;
+    }
+
     public async* searchPath(from: ConvertPathNode, to: ConvertPathNode, simpleMode: boolean) : AsyncGenerator<ConvertPathNode[]> {
-        // Dijkstra's algorithm
-        // Priority queue of {index, cost, path}
+        // A* search (simpleMode=true) or Dijkstra multi-path (simpleMode=false)
         let queue: PriorityQueue<QueueNode> = new PriorityQueue<QueueNode>(
             1000,
             (a: QueueNode, b: QueueNode) => a.cost - b.cost
         );
-        let visited = new Array<number>();
+        // O(1) visited set for simple mode (A* / standard Dijkstra)
+        let visitedSet = new Set<number>();
+        // Ordered array for multi-path mode visitedBorder position lookups
+        let visitedArr: number[] = [];
         let fromIndex = this.nodes.findIndex(node => node.mime === from.format.mime);
         let toIndex = this.nodes.findIndex(node => node.mime === to.format.mime);
         if (fromIndex === -1 || toIndex === -1) return []; // If either format is not in the graph, return empty array
-        queue.add({index: fromIndex, cost: 0, path: [from], visitedBorder: visited.length });
+        const toFormat = to.format;
+        const h0 = simpleMode ? this.heuristic(from.format, toFormat) : 0;
+        queue.add({index: fromIndex, cost: h0, gcost: 0, path: [from], visitedBorder: 0});
         console.log(`Starting path search from ${from.format.mime}(${from.handler?.name}) to ${to.format.mime}(${to.handler?.name}) (simple mode: ${simpleMode})`);
         let iterations = 0;
         let pathsFound = 0;
@@ -319,14 +342,23 @@ export class TraversionGraph {
             }
             // Get the node with the lowest cost
             let current = queue.poll()!;
-            const indexInVisited = visited.indexOf(current.index);
-            if (indexInVisited >= 0 && indexInVisited < current.visitedBorder) {
-                this.dispatchEvent("skipped", current.path);
-                continue;
+
+            // --- Visited check ---
+            if (simpleMode) {
+                // Standard A* / Dijkstra: each node processed at most once
+                if (visitedSet.has(current.index)) continue;
+            } else {
+                // Multi-path mode: allow re-visiting if node was queued before it was first visited
+                const indexInVisited = visitedArr.indexOf(current.index);
+                if (indexInVisited >= 0 && indexInVisited < current.visitedBorder) {
+                    this.dispatchEvent("skipped", current.path);
+                    continue;
+                }
             }
+
             if (current.index === toIndex) {
                 // Return the path of handlers and formats to get from the input format to the output format
-                console.log(`Found path at iteration ${iterations} with cost ${current.cost}: ${current.path.map(p => p.handler.name + "(" + p.format.mime + ")").join(" -> ")}`);
+                console.log(`Found path at iteration ${iterations} with cost ${current.gcost.toFixed(2)}: ${current.path.map(p => p.handler.name + "(" + p.format.mime + ")").join(" -> ")}`);
                 if (!this.disableSafeChecks) {
                     // HACK HACK HACK!!
                     //   Converting image -> video -> audio loses all meaningful media.
@@ -353,32 +385,50 @@ export class TraversionGraph {
                     // END OF HACK HACK HACK!!
                 }
                 if (simpleMode || !to.handler || to.handler.name === current.path.at(-1)?.handler.name) {
-                    console.log(`Found path at iteration ${iterations} with cost ${current.cost}: ${current.path.map(p => p.handler.name + "(" + p.format.mime + ")").join(" -> ")}`);
+                    console.log(`Found path at iteration ${iterations} with cost ${current.gcost.toFixed(2)}: ${current.path.map(p => p.handler.name + "(" + p.format.mime + ")").join(" -> ")}`);
                     this.dispatchEvent("found", current.path);
                     yield current.path; 
                     pathsFound++;
                 }
                 else {
-                    console.log(`Unvalid path at iteration ${iterations} with cost ${current.cost}: ${current.path.map(p => p.handler.name + "(" + p.format.mime + ")").join(" -> ")}`);
+                    console.log(`Unvalid path at iteration ${iterations} with cost ${current.gcost.toFixed(2)}: ${current.path.map(p => p.handler.name + "(" + p.format.mime + ")").join(" -> ")}`);
                     this.dispatchEvent("skipped", current.path);
                 }
                 continue; 
             }
-            visited.push(current.index);
+
+            // Mark current node as visited
+            if (simpleMode) {
+                visitedSet.add(current.index);
+            } else {
+                visitedArr.push(current.index);
+            }
             this.dispatchEvent("searching", current.path);
+
             this.nodes[current.index].edges.forEach(edgeIndex => {
                 let edge = this.edges[edgeIndex];
-                const indexInVisited = visited.indexOf(edge.to.index);
-                if (indexInVisited >= 0 && indexInVisited < current.visitedBorder) return;
+
+                if (simpleMode) {
+                    // A*: never enqueue already-visited nodes — keeps queue small
+                    if (visitedSet.has(edge.to.index)) return;
+                } else {
+                    // Multi-path: legacy visitedBorder check
+                    const indexInVisited = visitedArr.indexOf(edge.to.index);
+                    if (indexInVisited >= 0 && indexInVisited < current.visitedBorder) return;
+                }
+
                 const handler = this.handlers.find(h => h.name === edge.handler);
                 if (!handler) return; // If the handler for this edge is not found, skip it
                 
                 let path = current.path.concat({handler: handler, format: edge.to.format});
+                const gcost = current.gcost + edge.cost + this.calculateAdaptiveCost(path);
+                const hcost = simpleMode ? this.heuristic(edge.to.format, toFormat) : 0;
                 queue.add({
                     index: edge.to.index,
-                    cost: current.cost + edge.cost + this.calculateAdaptiveCost(path),
+                    cost: gcost + hcost,
+                    gcost,
                     path: path,
-                    visitedBorder: visited.length
+                    visitedBorder: simpleMode ? 0 : visitedArr.length
                 });
             });
             if (iterations % LOG_FREQUENCY === 0) {
