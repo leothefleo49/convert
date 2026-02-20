@@ -80,7 +80,7 @@ class qrcodeHandler implements FormatHandler {
           );
         }
         const detector = new BarcodeDetectorCls({ formats: ["qr_code"] });
-        const blob = new Blob([file.bytes], { type: "image/png" });
+        const blob = new Blob([file.bytes.buffer as ArrayBuffer], { type: "image/png" });
         const bmp = await createImageBitmap(blob);
         const codes: { rawValue: string }[] = await detector.detect(bmp);
         if (!codes.length) throw new Error("No QR code detected in image");

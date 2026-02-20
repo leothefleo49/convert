@@ -25,6 +25,7 @@ class PdfTextExtractHandler implements FormatHandler {
       mime: "application/pdf",
       from: true,
       to: false,
+      internal: "pdf",
       category: "document",
       lossless: true,
     },
@@ -35,8 +36,9 @@ class PdfTextExtractHandler implements FormatHandler {
       mime: "text/plain",
       from: false,
       to: true,
+      internal: "txt",
       category: "text",
-      lossless: false, // text extraction is never fully lossless (no layout info)
+      lossless: false,
     },
   ];
 
@@ -66,8 +68,8 @@ class PdfTextExtractHandler implements FormatHandler {
     const outputFiles: FileData[] = [];
 
     for (const file of inputFiles) {
-      // pdfjs needs a copy of the bytes (it may detach the buffer)
-      const data = new Uint8Array(file.bytes as ArrayBuffer);
+      // pdfjs accepts Uint8Array directly; slice to own ArrayBuffer to be safe
+      const data = new Uint8Array(file.bytes.buffer.slice(file.bytes.byteOffset, file.bytes.byteOffset + file.bytes.byteLength));
       const loadingTask = pdfjsLib.getDocument({ data });
       const pdf = await loadingTask.promise;
 
