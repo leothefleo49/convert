@@ -16,6 +16,7 @@ import type { FileData, FileFormat, FormatHandler } from "../FormatHandler.ts";
  */
 export class textFormatsHandler implements FormatHandler {
   public name = "textFormats";
+  public contributor = "leothefleo49";
   public ready = true;
 
   public supportedFormats: FileFormat[] = [

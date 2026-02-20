@@ -1,6 +1,7 @@
 import type { FileFormat, FileData, FormatHandler, ConvertPathNode } from "./FormatHandler.js";
 import normalizeMimeType from "./normalizeMimeType.js";
 import { TraversionGraph } from "./TraversionGraph.js";
+import { FORK_CONFIG, type SyncSource } from "./fork-config.ts";
 
 // Handlers are loaded DYNAMICALLY so the loading screen JS can run immediately.
 // The static import would block ALL code until every handler module resolves.
@@ -139,11 +140,11 @@ const filterButtonList = (list: HTMLDivElement, string: string) => {
     const hasText = button.textContent?.toLowerCase().includes(string);
     const matchesSearch = hasExtension || hasText;
 
-    // Contributor filter
-    const isNew = button.getAttribute("data-contributor") !== null;
+    // Contributor filter — "all" shows everything, "original" shows untagged formats, anything else matches that contributor name exactly
+    const btnContributor = button.getAttribute("data-contributor");
     let matchesContributor = true;
-    if (contributorFilter === "new") matchesContributor = isNew;
-    else if (contributorFilter === "original") matchesContributor = !isNew;
+    if (contributorFilter === "original") matchesContributor = btnContributor === null;
+    else if (contributorFilter !== "all") matchesContributor = btnContributor === contributorFilter;
 
     if (!matchesSearch || !matchesContributor) {
       button.style.display = "none";
@@ -172,16 +173,19 @@ const searchHandler = (event: Event) => {
 ui.inputSearch.oninput = searchHandler;
 ui.outputSearch.oninput = searchHandler;
 
-// Contributor filter buttons
-ui.filterButtons.forEach(btn => {
-  btn.addEventListener("click", () => {
-    ui.filterButtons.forEach(b => b.classList.remove("active"));
+// Contributor filter buttons — event delegation so dynamically-injected buttons work too
+const _filterPanel = document.getElementById("filter-panel");
+if (_filterPanel) {
+  _filterPanel.addEventListener("click", (e) => {
+    const btn = (e.target as HTMLElement).closest<HTMLButtonElement>(".filter-btn");
+    if (!btn) return;
+    _filterPanel.querySelectorAll<HTMLButtonElement>(".filter-btn").forEach(b => b.classList.remove("active"));
     btn.classList.add("active");
     contributorFilter = btn.getAttribute("data-filter") || "all";
     filterButtonList(ui.inputList, ui.inputSearch.value.toLowerCase());
     filterButtonList(ui.outputList, ui.outputSearch.value.toLowerCase());
   });
-});
+}
 
 // ──── Theme Toggle ────
 function applyTheme(theme: string) {
@@ -369,10 +373,8 @@ if (copyErrorsBtn) {
 }
 
 // ──── Upstream Manager (GitHub API) ────────────────────────────────────────
-const FORK_REPO   = "leothefleo49/convert";
-const UPSTREAM    = "p2r3:master"; // owner:branch format for GitHub compare API
-const WORKFLOW_ID = "sync-upstream.yml";
-const GH_API      = "https://api.github.com";
+const FORK_FULL = `${FORK_CONFIG.owner}/${FORK_CONFIG.repo}`;
+const GH_API    = "https://api.github.com";
 
 function getGhToken(): string {
   try { return localStorage.getItem("convert-gh-token") || ""; } catch { return ""; }
@@ -394,31 +396,29 @@ async function ghFetch(endpoint: string, opts: RequestInit = {}): Promise<Respon
   });
 }
 
-async function _umCheckStatus(panel: HTMLElement) {
-  const statusEl = panel.querySelector<HTMLElement>(".um-status-body")!;
+async function _umCheckStatusForSource(statusEl: HTMLElement, source: SyncSource) {
   statusEl.innerHTML = `<span class="um-loading">Checking…</span>`;
   try {
-    const owner = FORK_REPO.split("/")[0];
-    const r = await ghFetch(`/repos/${FORK_REPO}/compare/${owner}:master...${UPSTREAM}`);
+    const r = await ghFetch(`/repos/${FORK_FULL}/compare/${FORK_CONFIG.owner}:${FORK_CONFIG.branch}...${source.owner}:${source.branch}`);
     if (r.status === 401) { statusEl.innerHTML = `<span class="um-err">Token invalid or missing. Add a token below.</span>`; return; }
     if (!r.ok) throw new Error(r.statusText);
     const data = await r.json();
     const behind = data.behind_by ?? 0;
     const ahead  = data.ahead_by  ?? 0;
     if (behind === 0) {
-      statusEl.innerHTML = `<span class="um-ok">Up to date.</span>`;
+      statusEl.innerHTML = `<span class="um-ok">Up to date with ${source.displayName}.</span>`;
     } else {
       const commitList = (data.commits || []).slice(0, 5)
         .map((c: any) => `<li><code>${c.sha.slice(0,7)}</code> ${c.commit.message.split("\n")[0]}</li>`)
         .join("");
       statusEl.innerHTML = `
-        <span class="um-warn">${behind} commit${behind>1?"s":""} behind upstream${ahead>0?` (you are ${ahead} ahead)`:""}.</span>
+        <span class="um-warn">${behind} commit${behind>1?"s":""} behind ${source.displayName}${ahead>0?` (you are ${ahead} ahead)`:""}.</span>
         <ul class="um-commit-list">${commitList}${behind>5?`<li>…and ${behind-5} more</li>`:""}</ul>`;
     }
   } catch(e: any) {
     const errMsg = e instanceof Error ? (e.message || e.toString()) : String(e);
     statusEl.innerHTML = `<span class="um-err">Error: ${errMsg || "Unknown error"}</span>`;
-    console.error("Upstream status check failed:", e);
+    console.error("Status check failed:", e);
   }
 }
 
@@ -426,7 +426,7 @@ async function _umLoadPRs(panel: HTMLElement) {
   const prEl = panel.querySelector<HTMLElement>(".um-prs-body")!;
   prEl.innerHTML = `<span class="um-loading">Loading open sync PRs…</span>`;
   try {
-    const r = await ghFetch(`/repos/${FORK_REPO}/pulls?state=open&labels=upstream-sync&per_page=10`);
+    const r = await ghFetch(`/repos/${FORK_FULL}/pulls?state=open&labels=upstream-sync&per_page=10`);
     if (!r.ok) throw new Error(r.statusText);
     const prs: any[] = await r.json();
     if (prs.length === 0) {
@@ -451,7 +451,7 @@ async function _umLoadPRs(panel: HTMLElement) {
           const prNum = btn.dataset["pr"];
           btn.disabled = true; btn.textContent = "Merging…";
           try {
-            const mr = await ghFetch(`/repos/${FORK_REPO}/pulls/${prNum}/merge`, {
+            const mr = await ghFetch(`/repos/${FORK_FULL}/pulls/${prNum}/merge`, {
               method: "PUT",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ merge_method: "merge", commit_title: `Merge upstream sync PR #${prNum}` })
@@ -479,25 +479,22 @@ async function _umLoadPRs(panel: HTMLElement) {
   }
 }
 
-async function _umTriggerSync(btn: HTMLButtonElement, autoMerge: boolean, panel: HTMLElement) {
+async function _umTriggerSyncForSource(btn: HTMLButtonElement, autoMerge: boolean, msgEl: HTMLElement, source: SyncSource) {
   const token = getGhToken();
   if (!token) { alert("Please enter and save your GitHub token first."); return; }
   btn.disabled = true; btn.textContent = "Triggering…";
   try {
-    const r = await ghFetch(`/repos/${FORK_REPO}/actions/workflows/${WORKFLOW_ID}/dispatches`, {
+    const r = await ghFetch(`/repos/${FORK_FULL}/actions/workflows/${source.workflowFile}/dispatches`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ref: "master", inputs: { auto_merge: autoMerge ? "true" : "false" } })
+      body: JSON.stringify({ ref: FORK_CONFIG.branch, inputs: { auto_merge: autoMerge ? "true" : "false" } })
     });
     if (r.status === 204) {
       btn.textContent = "Workflow triggered.";
       setTimeout(() => { btn.disabled = false; btn.textContent = autoMerge ? "Trigger + Auto-Merge" : "Trigger Sync Workflow"; }, 3000);
       if (autoMerge) {
-        const msg = panel.querySelector<HTMLElement>(".um-trigger-msg")!;
-        msg.textContent = "Workflow running — it will create and auto-merge a PR. Check the PRs section in ~1 min.";
-        msg.classList.remove("um-hide");
-      } else {
-        setTimeout(() => _umLoadPRs(panel), 10000); // reload PRs after a bit
+        msgEl.textContent = "Workflow running — it will create and auto-merge a PR. Check the PRs section in ~1 min.";
+        msgEl.classList.remove("um-hide");
       }
     } else {
       const err = await r.json().catch(() => ({ message: r.statusText }));
@@ -512,15 +509,43 @@ async function _umTriggerSync(btn: HTMLButtonElement, autoMerge: boolean, panel:
 
 function showUpstreamManager() {
   const savedToken = getGhToken();
+  const forkFull   = FORK_FULL;
+
+  // Build one section per sync source
+  const sourceSections = FORK_CONFIG.syncSources.map((src, i) => `
+      <div class="um-section">
+        <div class="um-section-header">
+          <h3>Sync from ${src.displayName}</h3>
+          <button class="um-btn-sm um-btn-accent um-check-src" data-src="${i}">Check now</button>
+        </div>
+        <div class="um-src-status" data-src="${i}"><p class="um-hint">Click "Check now" to see if you are behind this source.</p></div>
+        <div class="um-trigger-btns" style="margin-top:8px">
+          <button class="um-btn-sm um-trigger-src" data-src="${i}">Trigger Sync Workflow</button>
+          <button class="um-btn-sm um-btn-accent um-trigger-src-auto" data-src="${i}">Trigger + Auto-Merge</button>
+        </div>
+        <p class="um-trigger-msg um-ok um-hide" data-src="${i}"></p>
+      </div>`).join("");
+
+  const syncAllSection = FORK_CONFIG.syncSources.length > 1 ? `
+      <div class="um-section">
+        <h3>Sync All Sources</h3>
+        <p class="um-hint">Triggers all sync workflows in order (root → nearest parent).</p>
+        <button id="um-sync-all" class="um-btn-sm um-btn-accent">Sync All Sources</button>
+      </div>` : "";
+
+  const compareButtons = FORK_CONFIG.syncSources.map(src =>
+    `<button class="um-btn-secondary" onclick="window.open('https://github.com/${forkFull}/compare/${FORK_CONFIG.branch}...${src.owner}:${src.repo}:${src.branch}','_blank')">Compare with ${src.displayName} ↗</button>`
+  ).join("");
+
   window.showPopup(`
     <div class="upstream-manager">
-      <h2>Upstream Sync Manager</h2>
-      <p class="um-subtitle">Sync your fork with <b>p2r3/convert</b> right here — no terminal or GitHub tab needed.</p>
+      <h2>Sync Manager</h2>
+      <p class="um-subtitle">Sync <b>${forkFull}</b> with its upstream source(s) — no terminal needed.</p>
 
       <div class="um-section">
         <h3>GitHub Token</h3>
         <p class="um-hint">Needs <code>repo</code> + <code>workflow</code> scopes.
-          <a href="https://github.com/settings/tokens/new?scopes=repo,workflow&description=Convert+Upstream+Sync" target="_blank" rel="noopener">Create one here ↗</a>
+          <a href="https://github.com/settings/tokens/new?scopes=repo,workflow&description=Convert+Sync" target="_blank" rel="noopener">Create one here ↗</a>
         </p>
         <div class="um-token-row">
           <input id="um-token-input" type="password" placeholder="ghp_…" value="${savedToken}" autocomplete="off" spellcheck="false" />
@@ -531,35 +556,20 @@ function showUpstreamManager() {
         <p id="um-token-msg" class="um-hide um-ok"></p>
       </div>
 
-      <div class="um-section">
-        <div class="um-section-header">
-          <h3>Upstream Status</h3>
-          <button id="um-check-btn" class="um-btn-sm um-btn-accent">Check now</button>
-        </div>
-        <div class="um-status-body"><p class="um-hint">Click "Check now" to see if you are behind upstream.</p></div>
-      </div>
+      ${sourceSections}
+      ${syncAllSection}
 
       <div class="um-section">
         <div class="um-section-header">
           <h3>Open Sync PRs</h3>
           <button id="um-refresh-prs" class="um-btn-sm">Refresh</button>
         </div>
-        <div class="um-prs-body"><p class="um-hint">PRs created by the sync workflow appear here.</p></div>
-      </div>
-
-      <div class="um-section">
-        <h3>Trigger Sync</h3>
-        <p class="um-hint">Runs the GitHub Actions workflow that fetches upstream changes and opens a PR.</p>
-        <div class="um-trigger-btns">
-          <button id="um-trigger-btn" class="um-btn-sm">Trigger Sync Workflow</button>
-          <button id="um-trigger-auto-btn" class="um-btn-sm um-btn-accent">Trigger + Auto-Merge</button>
-        </div>
-        <p class="um-trigger-msg um-ok um-hide"></p>
+        <div class="um-prs-body"><p class="um-hint">PRs created by sync workflows appear here.</p></div>
       </div>
 
       <div class="um-actions">
         <button class="um-btn-primary" onclick="window.hidePopup()">Close</button>
-        <button class="um-btn-secondary" onclick="window.open('https://github.com/${FORK_REPO}/compare/master...p2r3:convert:master','_blank')">Compare on GitHub ↗</button>
+        ${compareButtons}
       </div>
     </div>
   `);
@@ -588,25 +598,40 @@ function showUpstreamManager() {
     setTimeout(() => tokenMsg.classList.add("um-hide"), 2000);
   });
 
-  // Status check
-  const checkBtn = panel.querySelector<HTMLButtonElement>("#um-check-btn")!;
-  checkBtn.addEventListener("click", () => _umCheckStatus(panel));
+  // Per-source check + trigger buttons
+  FORK_CONFIG.syncSources.forEach((src, i) => {
+    const checkBtn   = panel.querySelector<HTMLButtonElement>(`.um-check-src[data-src="${i}"]`)!;
+    const statusEl   = panel.querySelector<HTMLElement>(`.um-src-status[data-src="${i}"]`)!;
+    const triggerBtn = panel.querySelector<HTMLButtonElement>(`.um-trigger-src[data-src="${i}"]`)!;
+    const autoBtn    = panel.querySelector<HTMLButtonElement>(`.um-trigger-src-auto[data-src="${i}"]`)!;
+    const msgEl      = panel.querySelector<HTMLElement>(`.um-trigger-msg[data-src="${i}"]`)!;
+    checkBtn.addEventListener("click",   () => _umCheckStatusForSource(statusEl, src));
+    triggerBtn.addEventListener("click", () => _umTriggerSyncForSource(triggerBtn, false, msgEl, src));
+    autoBtn.addEventListener("click",    () => _umTriggerSyncForSource(autoBtn,   true,  msgEl, src));
+    if (savedToken) _umCheckStatusForSource(statusEl, src);
+  });
+
+  // Sync all sources (shown only when there are multiple sources in the chain)
+  const syncAllBtn = panel.querySelector<HTMLButtonElement>("#um-sync-all");
+  if (syncAllBtn) {
+    syncAllBtn.addEventListener("click", async () => {
+      if (!getGhToken()) { alert("Please enter and save your GitHub token first."); return; }
+      syncAllBtn.disabled = true; syncAllBtn.textContent = "Triggering all…";
+      for (let i = 0; i < FORK_CONFIG.syncSources.length; i++) {
+        const src = FORK_CONFIG.syncSources[i];
+        const dummyMsg = document.createElement("p");
+        await _umTriggerSyncForSource(syncAllBtn, false, dummyMsg, src);
+        if (i < FORK_CONFIG.syncSources.length - 1) await new Promise(r => setTimeout(r, 2000));
+      }
+      syncAllBtn.textContent = "All triggered.";
+      setTimeout(() => { syncAllBtn.disabled = false; syncAllBtn.textContent = "Sync All Sources"; }, 4000);
+    });
+  }
 
   // PR list
   const refreshPRs = panel.querySelector<HTMLButtonElement>("#um-refresh-prs")!;
   refreshPRs.addEventListener("click", () => _umLoadPRs(panel));
-
-  // Trigger workflow buttons
-  const triggerBtn     = panel.querySelector<HTMLButtonElement>("#um-trigger-btn")!;
-  const triggerAutoBtn = panel.querySelector<HTMLButtonElement>("#um-trigger-auto-btn")!;
-  triggerBtn.addEventListener("click",     () => _umTriggerSync(triggerBtn,     false, panel));
-  triggerAutoBtn.addEventListener("click", () => _umTriggerSync(triggerAutoBtn, true,  panel));
-
-  // Auto-load status and PRs if token is present
-  if (savedToken) {
-    _umCheckStatus(panel);
-    _umLoadPRs(panel);
-  }
+  if (savedToken) _umLoadPRs(panel);
 }
 
 if (ui.syncInfoBtn) {
@@ -1217,13 +1242,40 @@ async function buildOptionList () {
   filterButtonList(ui.inputList, ui.inputSearch.value);
   filterButtonList(ui.outputList, ui.outputSearch.value);
 
-  // Update stats bar
+  // Update stats bar — show per-contributor breakdown
   if (ui.formatCount) {
-    const totalInputs = ui.inputList.querySelectorAll("button").length;
+    const totalInputs  = ui.inputList.querySelectorAll("button").length;
     const totalOutputs = ui.outputList.querySelectorAll("button").length;
-    const myCount = ui.inputList.querySelectorAll("button[data-contributor]").length
-      + ui.outputList.querySelectorAll("button[data-contributor]").length;
-    ui.formatCount.textContent = `${totalInputs} input formats · ${totalOutputs} output formats · ${myCount} contributed by you`;
+    // Count each contributor using the input list (output list mirrors it)
+    const countByContributor = new Map<string | null, number>();
+    ui.inputList.querySelectorAll<HTMLButtonElement>("button").forEach(b => {
+      const c = b.getAttribute("data-contributor");
+      countByContributor.set(c, (countByContributor.get(c) || 0) + 1);
+    });
+    const originalCount = countByContributor.get(null) || 0;
+    const parts: string[] = [`p2r3: ${originalCount}`];
+    for (const [c, n] of countByContributor) {
+      if (c !== null) parts.push(`${c}: ${n}`);
+    }
+    ui.formatCount.textContent = `${totalInputs} in · ${totalOutputs} out | ${parts.join(" · ")}`;
+  }
+
+  // Inject per-contributor filter buttons dynamically (one per unique contributor)
+  const _dynFilterPanel = document.getElementById("filter-panel");
+  if (_dynFilterPanel) {
+    _dynFilterPanel.querySelectorAll<HTMLButtonElement>(".filter-btn[data-contributor-btn]").forEach(b => b.remove());
+    const contributorSet = new Set<string>();
+    for (const h of handlers) { if (h.contributor) contributorSet.add(h.contributor); }
+    const refBtn = _dynFilterPanel.querySelector<HTMLButtonElement>('.filter-btn[data-filter="original"]');
+    for (const contributor of [...contributorSet].sort()) {
+      const btn = document.createElement("button");
+      btn.className = "filter-btn";
+      btn.setAttribute("data-filter", contributor);
+      btn.setAttribute("data-contributor-btn", "1");
+      btn.textContent = contributor;
+      if (refBtn) _dynFilterPanel.insertBefore(btn, refBtn);
+      else _dynFilterPanel.appendChild(btn);
+    }
   }
 
 }

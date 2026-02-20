@@ -8,6 +8,7 @@ import CommonFormats from "../CommonFormats.ts";
  */
 class textToPdfHandler implements FormatHandler {
   public name = "textToPdf";
+  public contributor = "leothefleo49";
   public ready = true;
 
   public supportedFormats: FileFormat[] = [
