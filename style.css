@@ -108,6 +108,9 @@ body {
 
 /* ──── Settings Drawer ──── */
 #settings-drawer {
+  position: sticky;
+  top: 60px;
+  z-index: 99;
   background: var(--bg-secondary);
   border-bottom: 1px solid var(--border);
   padding: 16px 24px;
