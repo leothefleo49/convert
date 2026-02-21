@@ -433,15 +433,24 @@ async function _umLoadPRs(panel: HTMLElement) {
     if (prs.length === 0) {
       prEl.innerHTML = `<p class="um-empty">No open upstream-sync PRs.</p>`;
     } else {
-      prEl.innerHTML = prs.map(pr => `
+      prEl.innerHTML = prs.map(pr => {
+        const hasConflict = pr.title.includes("\u26a0"); // ⚠️
+        const mergeLabel = hasConflict ? "Merge (review conflicts first)" : "Merge";
+        const mergeClass = hasConflict ? "um-btn-sm um-merge-pr um-btn-warn" : "um-btn-sm um-merge-pr um-btn-accent";
+        const conflictBanner = hasConflict
+          ? `<div class="um-pr-conflict-warn">⚠️ Conflicts were detected in this sync. The fork's version was kept. Review the PR diff on GitHub before merging to confirm nothing important was discarded.</div>`
+          : `<div class="um-pr-clean-note">✅ Clean merge — safe to merge directly.</div>`;
+        return `
         <div class="um-pr" data-pr="${pr.number}">
           <div class="um-pr-title"><a href="${pr.html_url}" target="_blank" rel="noopener">#${pr.number}</a> ${pr.title}</div>
           <div class="um-pr-meta">by ${pr.user.login} · ${new Date(pr.created_at).toLocaleDateString()}</div>
+          ${conflictBanner}
           <div class="um-pr-actions">
-            <button class="um-btn-sm um-view-pr" data-url="${pr.html_url}">View on GitHub</button>
-            <button class="um-btn-sm um-merge-pr um-btn-accent" data-pr="${pr.number}">Merge</button>
+            <button class="um-btn-sm um-view-pr" data-url="${pr.html_url}">View diff on GitHub ↗</button>
+            <button class="${mergeClass}" data-pr="${pr.number}" data-conflict="${hasConflict ? '1' : '0'}">${mergeLabel}</button>
           </div>
-        </div>`).join("");
+        </div>`;
+      }).join("");
       prEl.querySelectorAll<HTMLButtonElement>(".um-view-pr").forEach(btn => {
         btn.addEventListener("click", () => window.open(btn.dataset["url"], "_blank"));
       });
@@ -449,6 +458,12 @@ async function _umLoadPRs(panel: HTMLElement) {
         btn.addEventListener("click", async () => {
           const token = getGhToken();
           if (!token) { alert("Please enter and save your GitHub token first."); return; }
+          if (btn.dataset["conflict"] === "1") {
+            const ok = confirm(
+              "This sync PR had merge conflicts.\n\nThe fork's version was kept for all conflicted files — upstream changes in those files were discarded.\n\nHave you reviewed the PR diff on GitHub and confirmed the conflict resolutions look correct?\n\nClick OK to merge anyway, or Cancel to review first."
+            );
+            if (!ok) return;
+          }
           const prNum = btn.dataset["pr"];
           btn.disabled = true; btn.textContent = "Merging…";
           try {
@@ -492,9 +507,12 @@ async function _umTriggerSyncForSource(btn: HTMLButtonElement, autoMerge: boolea
     });
     if (r.status === 204) {
       btn.textContent = "Workflow triggered.";
-      setTimeout(() => { btn.disabled = false; btn.textContent = autoMerge ? "Trigger + Auto-Merge" : "Trigger Sync Workflow"; }, 3000);
+      setTimeout(() => { btn.disabled = false; btn.textContent = autoMerge ? "Trigger + Auto-Merge (clean only)" : "Trigger Sync Workflow"; }, 3000);
       if (autoMerge) {
-        msgEl.textContent = "Workflow running — it will create and auto-merge a PR. Check the PRs section in ~1 min.";
+        msgEl.textContent = "Workflow running — if the merge is clean (no conflicts) it will auto-merge. If conflicts are detected, auto-merge is skipped and a PR will be created for manual review. Check the PRs section in ~2 min.";
+        msgEl.classList.remove("um-hide");
+      } else {
+        msgEl.textContent = "Workflow running — a PR will be created shortly. Check the PRs section below in ~2 min.";
         msgEl.classList.remove("um-hide");
       }
     } else {
@@ -522,7 +540,7 @@ function showUpstreamManager() {
         <div class="um-src-status" data-src="${i}"><p class="um-hint">Click "Check now" to see if you are behind this source.</p></div>
         <div class="um-trigger-btns" style="margin-top:8px">
           <button class="um-btn-sm um-trigger-src" data-src="${i}">Trigger Sync Workflow</button>
-          <button class="um-btn-sm um-btn-accent um-trigger-src-auto" data-src="${i}">Trigger + Auto-Merge</button>
+          <button class="um-btn-sm um-btn-accent um-trigger-src-auto" data-src="${i}" title="Auto-merge is ONLY enabled when the merge completes with zero conflicts. If any conflicts are detected, a PR is created for manual review instead.">Trigger + Auto-Merge (clean only)</button>
         </div>
         <p class="um-trigger-msg um-ok um-hide" data-src="${i}"></p>
       </div>`).join("");

@@ -793,13 +793,25 @@ body {
 .um-commit-list li { margin-bottom: 2px; }
 .um-commit-list code { font-size: 0.75rem; color: var(--accent); }
 
+/* Collapsible details in status / file list */
+.um-details { margin: 6px 0 0; font-size: 0.8rem; color: var(--text-secondary); }
+.um-details summary { cursor: pointer; color: var(--accent); font-size: 0.8rem; user-select: none; }
+.um-details summary:hover { opacity: 0.85; }
+.um-file-list { margin: 4px 0 0; padding-left: 16px; font-size: 0.77rem; }
+.um-file-list li { margin-bottom: 2px; word-break: break-all; }
+.um-file-list code { font-size: 0.75rem; color: var(--text-primary); }
+.um-file-stat { font-size: 0.72rem; color: var(--text-muted); }
+
 /* PR cards */
 .um-pr { background: var(--bg-card); border-radius: var(--radius-sm); padding: 8px 10px; margin-bottom: 6px; border: 1px solid var(--border); }
 .um-pr:last-child { margin-bottom: 0; }
 .um-pr-title { font-size: 0.85rem; font-weight: 600; margin-bottom: 2px; }
 .um-pr-title a { color: var(--accent); text-decoration: none; }
 .um-pr-meta  { font-size: 0.75rem; color: var(--text-muted); margin-bottom: 6px; }
-.um-pr-actions { display: flex; gap: 6px; }
+.um-pr-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.um-pr-conflict-warn { font-size: 0.77rem; color: #e17055; background: rgba(225,112,85,.1); border: 1px solid rgba(225,112,85,.3); border-radius: 4px; padding: 5px 8px; margin: 4px 0 6px; }
+.um-pr-clean-note    { font-size: 0.77rem; color: #00b894; margin: 2px 0 6px; }
+.um-btn-warn { background: #e17055 !important; color: #fff !important; border-color: #e17055 !important; }
 
 /* Trigger row */
 .um-trigger-btns { display: flex; gap: 8px; flex-wrap: wrap; }
