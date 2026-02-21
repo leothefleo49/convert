@@ -1,7 +1,15 @@
-import { afterAll, expect, test } from "bun:test";
+import { test, after } from "node:test";
+import assert from "node:assert";
 import puppeteer from "puppeteer";
+import http from "http";
+import fs from "fs/promises";
+import path from "path";
+import { fileURLToPath } from "url";
 import type { FileData, FormatHandler, FileFormat, ConvertPathNode } from "../src/FormatHandler.js";
 import CommonFormats from "../src/CommonFormats.js";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 declare global {
   interface Window {
@@ -14,16 +22,45 @@ declare global {
 }
 
 // Set up a basic webserver to host the distribution build
-const server = Bun.serve({
-  async fetch (req) {
-    let path = new URL(req.url).pathname.replace("/convert/", "") || "index.html";
-    if (path.startsWith("/test/")) path = "../test/resources/" + path.slice(6);
-    const file = Bun.file(`${__dirname}/../dist/${path}`);
-    if (!(await file.exists())) return new Response("Not Found", { status: 404 });
-    return new Response(file);
-  },
-  port: 8080
+const server = http.createServer(async (req, res) => {
+  try {
+    let reqPath = new URL(req.url, `http://${req.headers.host}`).pathname.replace("/convert/", "") || "index.html";
+    let filePath = path.join(__dirname, "..", "dist", reqPath);
+    if (reqPath.startsWith("/test/")) {
+      filePath = path.join(__dirname, "resources", reqPath.slice(6));
+    }
+    
+    try {
+      const stat = await fs.stat(filePath);
+      if (!stat.isFile()) throw new Error("Not a file");
+    } catch {
+      res.writeHead(404);
+      res.end("Not Found");
+      return;
+    }
+
+    const content = await fs.readFile(filePath);
+    
+    const ext = path.extname(filePath).toLowerCase();
+    const mimeTypes = {
+      '.html': 'text/html',
+      '.js': 'text/javascript',
+      '.css': 'text/css',
+      '.json': 'application/json',
+      '.png': 'image/png',
+      '.jpg': 'image/jpeg',
+      '.svg': 'image/svg+xml'
+    };
+    
+    res.writeHead(200, { 'Content-Type': mimeTypes[ext] || 'application/octet-stream' });
+    res.end(content);
+  } catch (err) {
+    res.writeHead(500);
+    res.end("Server Error");
+  }
 });
+
+await new Promise(resolve => server.listen(8080, resolve));
 
 // Start puppeteer, wait for ready confirmation
 const browser = await puppeteer.launch({
@@ -86,10 +123,10 @@ test("png → jpeg", async () => {
     CommonFormats.JPEG
   );
 
-  expect(conversion).toBeDefined();
-  expect(conversion!.path.map(c => c.format.mime)).toEqual(["image/png", "image/jpeg"]);
+  assert.ok(conversion);
+  assert.deepStrictEqual(conversion!.path.map(c => c.format.mime), ["image/png", "image/jpeg"]);
 
-}, { timeout: 60000 });
+});
 
 test("png → svg", async () => {
 
@@ -99,10 +136,10 @@ test("png → svg", async () => {
     CommonFormats.SVG
   );
 
-  expect(conversion).toBeDefined();
-  expect(conversion!.path.map(c => c.format.mime)).toEqual(["image/png", "image/svg+xml"]);
+  assert.ok(conversion);
+  assert.deepStrictEqual(conversion!.path.map(c => c.format.mime), ["image/png", "image/svg+xml"]);
 
-}, { timeout: 60000 });
+});
 
 test("mp4 → apng", async () => {
 
@@ -112,11 +149,11 @@ test("mp4 → apng", async () => {
     CommonFormats.PNG
   );
 
-  expect(conversion).toBeDefined();
-  expect(conversion!.path.map(c => c.format.format)).toEqual(["mp4", "apng"]);
-  expect(conversion?.files.length).toBe(1);
+  assert.ok(conversion);
+  assert.deepStrictEqual(conversion!.path.map(c => c.format.format), ["mp4", "apng"]);
+  assert.strictEqual(conversion?.files.length, 1);
 
-}, { timeout: 60000 });
+});
 
 test("png → mp4", async () => {
 
@@ -126,10 +163,10 @@ test("png → mp4", async () => {
     CommonFormats.MP4
   );
 
-  expect(conversion).toBeDefined();
-  expect(conversion!.path.map(c => c.format.mime)).toEqual(["image/png", "video/mp4"]);
+  assert.ok(conversion);
+  assert.deepStrictEqual(conversion!.path.map(c => c.format.mime), ["image/png", "video/mp4"]);
 
-}, { timeout: 60000 });
+});
 
 test("png → wav → mp3", async () => {
 
@@ -139,10 +176,10 @@ test("png → wav → mp3", async () => {
     CommonFormats.MP3
   );
 
-  expect(conversion).toBeDefined();
-  expect(conversion!.path.map(c => c.format.mime)).toEqual(["image/png", "audio/wav", "audio/mpeg"]);
+  assert.ok(conversion);
+  assert.deepStrictEqual(conversion!.path.map(c => c.format.mime), ["image/png", "audio/wav", "audio/mpeg"]);
 
-}, { timeout: 60000 });
+});
 
 test("mp3 → png → gif", async () => {
 
@@ -152,10 +189,10 @@ test("mp3 → png → gif", async () => {
     CommonFormats.GIF
   );
 
-  expect(conversion).toBeDefined();
-  expect(conversion!.path.map(c => c.format.mime)).toEqual(["audio/mpeg", "image/png", "image/gif"]);
+  assert.ok(conversion);
+  assert.deepStrictEqual(conversion!.path.map(c => c.format.mime), ["audio/mpeg", "image/png", "image/gif"]);
 
-}, { timeout: 60000 });
+});
 
 test("docx → html → svg → png → pdf", async () => {
 
@@ -165,15 +202,15 @@ test("docx → html → svg → png → pdf", async () => {
     CommonFormats.PDF
   );
 
-  expect(conversion).toBeDefined();
-  expect(conversion!.path.map(c => c.format.mime)).toEqual([
+  assert.ok(conversion);
+  assert.deepStrictEqual(conversion!.path.map(c => c.format.mime), [
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     "text/html", "image/svg+xml", "image/png", "application/pdf"
   ]);
   const fileSize = Object.values(conversion!.files[0].bytes).length;
-  expect(fileSize).toBeWithin(55000, 65000);
+  assert.ok(fileSize >= 55000 && fileSize <= 65000);
 
-}, { timeout: 60000 });
+});
 
 test("md → docx", async () => {
 
@@ -183,19 +220,19 @@ test("md → docx", async () => {
     CommonFormats.DOCX
   );
 
-  expect(conversion).toBeDefined();
-  expect(conversion!.path.map(c => c.format.mime)).toEqual([
+  assert.ok(conversion);
+  assert.deepStrictEqual(conversion!.path.map(c => c.format.mime), [
     "text/markdown", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
   ]);
 
-}, { timeout: 60000 });
+});
 
 // ==================================================================
 //                          END OF TESTS
 // ==================================================================
 
 
-afterAll(async () => {
+after(async () => {
   await browser.close();
-  server.stop();
+  server.close();
 });

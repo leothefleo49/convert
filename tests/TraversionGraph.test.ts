@@ -2,7 +2,8 @@ import { TraversionGraph } from "../src/TraversionGraph";
 import CommonFormats from "../src/CommonFormats.ts";
 import { ConvertPathNode, type FileFormat, type FormatHandler } from "../src/FormatHandler.ts";
 import { MockedHandler } from "./MockedHandler.ts";
-import { expect, test } from "bun:test";
+import { test } from "node:test";
+import { strict as assert } from "node:assert";
 
 const handlers : FormatHandler[] = [
   new MockedHandler("canvasToBlob", [
@@ -53,10 +54,10 @@ test('should find the optimal path from image to audio\n', async () => {
   let extractedPaths = [];
   for await (const path of paths) 
     extractedPaths.push(path);
-  expect(extractedPaths.length).toBeGreaterThan(0);
+  assert(extractedPaths.length > 0);
   const optimalPath = extractedPaths[0];
-  expect(optimalPath[0].handler.name).toBe("canvasToBlob");
-  expect(optimalPath[optimalPath.length - 1].handler.name).toBe("ffmpeg");
+  assert.strictEqual(optimalPath[0].handler.name, "canvasToBlob");
+  assert.strictEqual(optimalPath[optimalPath.length - 1].handler.name, "ffmpeg");
 });
 
 test('should find the optimal path from image to audio in strict graph\n', async () => {
@@ -71,10 +72,10 @@ test('should find the optimal path from image to audio in strict graph\n', async
   let extractedPaths = [];
   for await (const path of paths) 
     extractedPaths.push(path);
-  expect(extractedPaths.length).toBeGreaterThan(0);
+  assert(extractedPaths.length > 0);
   const optimalPath = extractedPaths[0];
-  expect(optimalPath[0].handler.name).toBe("canvasToBlob");
-  expect(optimalPath[optimalPath.length - 1].handler.name).toBe("ffmpeg");
+  assert.strictEqual(optimalPath[0].handler.name, "canvasToBlob");
+  assert.strictEqual(optimalPath[optimalPath.length - 1].handler.name, "ffmpeg");
 });
 
 
@@ -102,9 +103,9 @@ test('add category change costs should affect pathfinding\n', async () => {
   let extractedNewPaths = [];
   for await (const path of newPaths) 
     extractedNewPaths.push(path);
-  expect(extractedPaths.length).toBeGreaterThan(0);
-  expect(extractedNewPaths.length).toBeGreaterThan(0);
-  expect(extractedNewPaths).not.toEqual(extractedPaths);
+  assert(extractedPaths.length > 0);
+  assert(extractedNewPaths.length > 0);
+  assert.notDeepStrictEqual(extractedNewPaths, extractedPaths);
 });
 
 test('remove category change costs should affect pathfinding\n', async () => {
@@ -132,9 +133,9 @@ test('remove category change costs should affect pathfinding\n', async () => {
   let extractedNewPaths = [];
   for await (const path of newPaths) 
     extractedNewPaths.push(path);
-  expect(extractedPaths.length).toBeGreaterThan(0);
-  expect(extractedNewPaths.length).toBeGreaterThan(0);
-  expect(extractedNewPaths).not.toEqual(extractedPaths);
+  assert(extractedPaths.length > 0);
+  assert(extractedNewPaths.length > 0);
+  assert.notDeepStrictEqual(extractedNewPaths, extractedPaths);
 });
 
 test('add adaptive category costs should affect pathfinding\n', async () => {
@@ -161,9 +162,9 @@ test('add adaptive category costs should affect pathfinding\n', async () => {
   let extractedNewPaths = [];
   for await (const path of newPaths) 
     extractedNewPaths.push(path);
-  expect(extractedPaths.length).toBeGreaterThan(0);
-  expect(extractedNewPaths.length).toBeGreaterThan(0);
-  expect(extractedNewPaths).not.toEqual(extractedPaths);
+  assert(extractedPaths.length > 0);
+  assert(extractedNewPaths.length > 0);
+  assert.notDeepStrictEqual(extractedNewPaths, extractedPaths);
 });
 
 test('remove adaptive category costs should affect pathfinding\n', async () => {
@@ -190,9 +191,9 @@ test('remove adaptive category costs should affect pathfinding\n', async () => {
   let extractedNewPaths = [];
   for await (const path of newPaths) 
     extractedNewPaths.push(path);
-  expect(extractedPaths.length).toBeGreaterThan(0);
-  expect(extractedNewPaths.length).toBeGreaterThan(0);
-  expect(extractedNewPaths[0]).not.toEqual(extractedPaths[0]);
+  assert(extractedPaths.length > 0);
+  assert(extractedNewPaths.length > 0);
+  assert.notDeepStrictEqual(extractedNewPaths[0], extractedPaths[0]);
 });
 
 test('enabling safe checks should affect pathfinding\n', async () => {
@@ -219,7 +220,7 @@ test('enabling safe checks should affect pathfinding\n', async () => {
   let extractedNewPaths = [];
   for await (const path of newPaths) 
     extractedNewPaths.push(path);
-  expect(extractedPaths.length).toBeGreaterThan(0);
-  expect(extractedNewPaths.length).toBeGreaterThan(0);
-  expect(extractedNewPaths[0]).toEqual(extractedPaths[0]);
+  assert(extractedPaths.length > 0);
+  assert(extractedNewPaths.length > 0);
+  assert.deepStrictEqual(extractedNewPaths[0], extractedPaths[0]);
 });
