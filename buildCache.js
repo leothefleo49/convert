@@ -31,7 +31,8 @@ const server = http.createServer(async (req, res) => {
       '.json': 'application/json',
       '.png': 'image/png',
       '.jpg': 'image/jpeg',
-      '.svg': 'image/svg+xml'
+      '.svg': 'image/svg+xml',
+      '.wasm': 'application/wasm'
     };
     
     res.writeHead(200, { 'Content-Type': mimeTypes[ext] || 'application/octet-stream' });
@@ -50,12 +51,18 @@ server.listen(8080, async () => {
     });
 
     const page = await browser.newPage();
+    page.on("console", msg => console.log("BROWSER:", msg.text()));
+    page.on("pageerror", err => console.error("BROWSER ERROR:", err));
 
     await Promise.all([
-      new Promise(resolve => {
+      new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => reject(new Error("Timeout waiting for 'Built initial format list.'")), 60000);
         page.on("console", msg => {
           const text = msg.text();
-          if (text === "Built initial format list.") resolve();
+          if (text.includes("Built initial format list.")) {
+            clearTimeout(timeout);
+            resolve();
+          }
         });
       }),
       page.goto("http://localhost:8080/convert/index.html")
@@ -70,6 +77,7 @@ server.listen(8080, async () => {
 
     await browser.close();
     server.close();
+    process.exit(0);
   } catch (err) {
     console.error(err);
     server.close();

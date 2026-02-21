@@ -1,4 +1,4 @@
-FROM oven/bun:1 AS build
+FROM node:22 AS build
 
 WORKDIR /app
 
@@ -10,13 +10,13 @@ ENV PUPPETEER_SKIP_DOWNLOAD=true
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 
 COPY .npmrc ./
-COPY package.json ./
-RUN bun install --frozen-lockfile
+COPY package.json package-lock.json ./
+RUN npm ci
 
 COPY . .
 
-RUN bun run build
-RUN bun run buildCache.js dist/cache.json
+RUN npm run build
+RUN node buildCache.js dist/cache.json
 
 FROM nginx:stable-alpine AS runtime
 
