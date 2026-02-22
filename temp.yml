@@ -1,0 +1,234 @@
+name: Sync Upstream
+
+on:
+  schedule:
+    # Run daily at 07:00 UTC
+    - cron: "0 7 * * *"
+  workflow_dispatch:
+    inputs:
+      auto_merge:
+        description: "Auto-merge the PR only if the merge is 100% clean (no conflicts). Automatically skipped when conflicts are detected."
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      workflows: write
+
+    steps:
+      - name: Checkout fork
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure git
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Add upstream remote
+        run: git remote add upstream https://github.com/p2r3/convert.git
+
+      - name: Fetch upstream master
+        run: git fetch upstream master
+
+      - name: Check how many commits behind
+        id: check
+        run: |
+          BEHIND=$(git log HEAD..upstream/master --oneline | wc -l | tr -d ' ')
+          echo "behind=$BEHIND" >> "$GITHUB_OUTPUT"
+          echo "Upstream is $BEHIND commit(s) ahead of this fork."
+
+      - name: Skip if already up to date
+        if: steps.check.outputs.behind == '0'
+        run: echo "Already up to date. Nothing to do."
+
+      # ── Collect what upstream changed before we touch anything ──────────
+
+      - name: Collect upstream change summary
+        if: steps.check.outputs.behind != '0'
+        id: summary
+        run: |
+          # Commit log (up to 40 lines)
+          COMMITS=$(git log HEAD..upstream/master --oneline | head -40)
+          {
+            echo "commits<<COMMITS_EOF"
+            echo "$COMMITS"
+            echo "COMMITS_EOF"
+          } >> "$GITHUB_OUTPUT"
+
+          # Files changed by upstream (up to 80 entries)
+          FILES=$(git diff --name-only HEAD upstream/master | head -80)
+          {
+            echo "files<<FILES_EOF"
+            echo "$FILES"
+            echo "FILES_EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      # ── Attempt merge in a new branch ───────────────────────────────────
+
+      - name: Create sync branch and merge
+        if: steps.check.outputs.behind != '0'
+        id: merge
+        run: |
+          BRANCH="upstream-sync/$(date +%Y%m%d-%H%M)"
+          git checkout -b "$BRANCH"
+
+          MERGE_CLEAN="true"
+          CONFLICT_FILES=""
+
+          # Try a fully clean merge first (no strategy override)
+          if git merge upstream/master --no-edit 2>/dev/null; then
+            echo "Clean merge succeeded — no conflicts."
+          else
+            MERGE_CLEAN="false"
+            # Record which specific files conflicted before resolving
+            CONFLICT_FILES=$(git diff --name-only --diff-filter=U | sort)
+            echo "Conflicts detected in:"
+            echo "$CONFLICT_FILES"
+            # Abort and re-merge keeping fork's version for all conflicts
+            git merge --abort 2>/dev/null || true
+            git merge upstream/master --no-edit -X ours
+            echo "Merged with -X ours. Fork version kept for all conflicted files."
+          fi
+
+          # Always restore OUR .github/workflows/ after the merge.
+          # Upstream workflow changes would cause a permission error on push.
+          git checkout master -- .github/workflows/ 2>/dev/null || true
+          git diff --cached --quiet || git commit --amend --no-edit
+
+          git push origin "$BRANCH"
+
+          echo "branch=$BRANCH"           >> "$GITHUB_OUTPUT"
+          echo "merge_clean=$MERGE_CLEAN" >> "$GITHUB_OUTPUT"
+          {
+            echo "conflict_files<<CF_EOF"
+            echo "$CONFLICT_FILES"
+            echo "CF_EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      # ── Build the PR body ──────────────────────────────────────────────
+
+      - name: Build PR body
+        if: steps.check.outputs.behind != '0'
+        id: pr_body
+        env:
+          BEHIND: ${{ steps.check.outputs.behind }}
+          COMMITS: ${{ steps.summary.outputs.commits }}
+          FILES: ${{ steps.summary.outputs.files }}
+          MERGE_CLEAN: ${{ steps.merge.outputs.merge_clean }}
+          CONFLICT_FILES: ${{ steps.merge.outputs.conflict_files }}
+        run: |
+          if [ "$MERGE_CLEAN" = "true" ]; then
+            SAFETY="✅ **Clean merge** — no conflicts detected. Safe to auto-merge."
+          else
+            SAFETY="⚠️ **Conflicts detected and auto-resolved** (fork's version kept for all conflicts). **Please review the conflicted files below before merging.** Auto-merge has been disabled."
+          fi
+
+          if [ -n "$FILES" ]; then
+            FILES_SECTION="### All files changed by upstream
+\`\`\`
+$FILES
+\`\`\`
+"
+          else
+            FILES_SECTION=""
+          fi
+
+          if [ "$MERGE_CLEAN" = "false" ] && [ -n "$CONFLICT_FILES" ]; then
+            CONFLICT_SECTION="### ⚠️ Files with conflicts — fork version kept, manual review recommended
+The following files had merge conflicts. Upstream's changes were **discarded in favour of your fork's version**. These are the files you should **manually diff** to check if any valuable upstream changes were lost:
+\`\`\`
+$CONFLICT_FILES
+\`\`\`
+To see exactly what upstream changed in a file, click the **Compare** links in the app's Sync Manager, or view the upstream commits on GitHub.
+"
+          else
+            CONFLICT_SECTION=""
+          fi
+
+          {
+            echo "body<<BODY_EOF"
+            echo "## Upstream sync — $BEHIND new commit(s) from [p2r3/convert](https://github.com/p2r3/convert)"
+            echo ""
+            echo "$SAFETY"
+            echo ""
+            echo "### Upstream commits"
+            echo '```'
+            echo "$COMMITS"
+            echo '```'
+            echo ""
+            echo "$FILES_SECTION"
+            echo "$CONFLICT_SECTION"
+            echo "### How to handle this"
+            echo "- **Clean merge (✅):** merge this PR directly — your fork gains the upstream improvements with zero risk."
+            echo "- **Conflicts (⚠️):** review the files listed above. Your fork's version was kept — check if upstream made improvements worth manually incorporating."
+            echo "- **Reject this sync:** close the PR."
+            echo ""
+            echo "---"
+            echo "*Auto-generated by [sync-upstream.yml](.github/workflows/sync-upstream.yml)*"
+            echo "BODY_EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      # ── Open the PR ────────────────────────────────────────────────────
+
+      - name: Create Pull Request
+        if: steps.check.outputs.behind != '0'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BEHIND: ${{ steps.check.outputs.behind }}
+          MERGE_CLEAN: ${{ steps.merge.outputs.merge_clean }}
+          BRANCH: ${{ steps.merge.outputs.branch }}
+          PR_BODY: ${{ steps.pr_body.outputs.body }}
+        run: |
+          if [ "$MERGE_CLEAN" = "true" ]; then
+            TITLE="✅ Upstream sync $(date +%Y-%m-%d): $BEHIND new commit(s) — clean"
+          else
+            TITLE="⚠️ Upstream sync $(date +%Y-%m-%d): $BEHIND new commit(s) — conflicts, review needed"
+          fi
+
+          gh pr create \
+            --title "$TITLE" \
+            --body "$PR_BODY" \
+            --head "$BRANCH" \
+            --base master \
+            --label "upstream-sync" \
+          || echo "PR may already exist for this branch."
+
+      # ── Auto-merge ONLY when merge was 100% clean ───────────────────────
+      # If there were ANY conflicts, auto-merge is always skipped regardless
+      # of the auto_merge input — conflicts require human review.
+
+      - name: Auto-merge (clean merges only)
+        if: >
+          steps.check.outputs.behind != '0' &&
+          inputs.auto_merge == 'true' &&
+          steps.merge.outputs.merge_clean == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BRANCH: ${{ steps.merge.outputs.branch }}
+        run: |
+          sleep 6
+          PR_NUMBER=$(gh pr list --head "$BRANCH" --json number --jq '.[0].number' 2>/dev/null || echo "")
+          if [ -n "$PR_NUMBER" ] && [ "$PR_NUMBER" != "null" ]; then
+            gh pr merge "$PR_NUMBER" --auto --merge
+            echo "Auto-merge enabled for PR #$PR_NUMBER (clean merge confirmed)"
+          else
+            echo "Could not find PR number — skipping auto-merge."
+          fi
+
+      - name: Skip auto-merge due to conflicts
+        if: >
+          steps.check.outputs.behind != '0' &&
+          inputs.auto_merge == 'true' &&
+          steps.merge.outputs.merge_clean == 'false'
+        run: |
+          echo "Auto-merge was requested but SKIPPED — conflicts were detected."
+          echo "The PR has been created with a full list of conflicted files."
+          echo "Review the PR, confirm the conflict resolutions look right, then merge manually."
