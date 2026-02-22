@@ -535,42 +535,74 @@ function showUpstreamManager() {
       <div class="um-section">
         <div class="um-section-header">
           <h3>Sync from ${src.displayName}</h3>
-          <button class="um-btn-sm um-btn-accent um-check-src" data-src="${i}">Check now</button>
+          <button class="um-btn-sm um-btn-accent um-check-src" data-src="${i}" title="Query the GitHub API to see how many commits your fork is behind this source">Check now</button>
         </div>
+        <p class="um-hint" style="margin-top:4px">
+          Shows how many commits your fork is behind <b>${src.displayName}</b>.
+          ${src.workflowFile
+            ? `Triggering a sync will run the <code>${src.workflowFile}</code> workflow in your repo.`
+            : `This entry is <b>status-only</b> — no workflow is configured for this source, so trigger buttons are disabled.`
+          }
+        </p>
         <div class="um-src-status" data-src="${i}"><p class="um-hint">Click "Check now" to see if you are behind this source.</p></div>
         <div class="um-trigger-btns" style="margin-top:8px">
-          <button class="um-btn-sm um-trigger-src" data-src="${i}">Trigger Sync Workflow</button>
-          <button class="um-btn-sm um-btn-accent um-trigger-src-auto" data-src="${i}" title="Auto-merge is ONLY enabled when the merge completes with zero conflicts. If any conflicts are detected, a PR is created for manual review instead.">Trigger + Auto-Merge (clean only)</button>
+          <button class="um-btn-sm um-trigger-src" data-src="${i}"
+            title="Triggers the sync workflow. The workflow will create a PR from a new sync branch — you then review and merge it yourself."
+            ${src.workflowFile ? "" : "disabled"}>Trigger Sync Workflow</button>
+          <button class="um-btn-sm um-btn-accent um-trigger-src-auto" data-src="${i}"
+            title="Triggers the sync workflow with auto-merge enabled. The PR will be merged automatically ONLY if the merge has zero conflicts. If any conflicts are detected, auto-merge is skipped and the PR is left for manual review."
+            ${src.workflowFile ? "" : "disabled"}>Trigger + Auto-Merge (clean only)</button>
         </div>
+        <p class="um-hint um-trigger-explanation" style="margin-top:6px;font-size:0.82em">
+          <b>Trigger Sync Workflow</b> — creates a PR for you to review and merge manually.<br>
+          <b>Trigger + Auto-Merge</b> — same as above, but the PR is merged automatically if and only if there are zero conflicts. Any conflict disables auto-merge and the PR is left for you to review.
+        </p>
         <p class="um-trigger-msg um-ok um-hide" data-src="${i}"></p>
       </div>`).join("");
 
   const syncAllSection = FORK_CONFIG.syncSources.length > 1 ? `
       <div class="um-section">
         <h3>Sync from Nearest Parent</h3>
-        <p class="um-hint">Triggers a sync from your immediate parent repo only. Syncing further ancestors requires those repo owners to run their own sync workflows first. Status cards above show how far behind you are from each level.</p>
-        <button id="um-sync-all" class="um-btn-sm um-btn-accent">Sync from Parent (${FORK_CONFIG.syncSources[FORK_CONFIG.syncSources.length-1].displayName})</button>
+        <p class="um-hint">
+          A shortcut to trigger a sync from your <b>direct parent</b> (${FORK_CONFIG.syncSources[FORK_CONFIG.syncSources.length-1].displayName}) only.
+          You can only sync from your own immediate parent — syncing deeper ancestors requires those repo owners to run their own sync workflows first,
+          propagating changes down the fork chain one level at a time.
+          The status cards above show how many commits behind you are from each level of the chain.
+        </p>
+        <button id="um-sync-all" class="um-btn-sm um-btn-accent" title="Triggers the sync workflow for your nearest parent (${FORK_CONFIG.syncSources[FORK_CONFIG.syncSources.length-1].displayName}) — same as clicking Trigger Sync Workflow in that section above">Sync from Parent (${FORK_CONFIG.syncSources[FORK_CONFIG.syncSources.length-1].displayName})</button>
       </div>` : "";
 
   const compareButtons = FORK_CONFIG.syncSources.map(src =>
-    `<button class="um-btn-secondary" onclick="window.open('https://github.com/${forkFull}/compare/${FORK_CONFIG.branch}...${src.owner}:${src.repo}:${src.branch}','_blank')">Compare with ${src.displayName} ↗</button>`
+    `<button class="um-btn-secondary" title="Opens GitHub's compare view showing exactly what commits and file changes differ between your fork and ${src.displayName}" onclick="window.open('https://github.com/${forkFull}/compare/${FORK_CONFIG.branch}...${src.owner}:${src.repo}:${src.branch}','_blank')">Compare with ${src.displayName} ↗</button>`
   ).join("");
 
   window.showPopup(`
     <div class="upstream-manager">
       <h2>Sync Manager</h2>
       <p class="um-subtitle">Sync <b>${forkFull}</b> with its upstream source(s) — no terminal needed.</p>
+      <p class="um-hint" style="margin-bottom:12px">
+        The Sync Manager lets you check how far behind your fork is from each ancestor,
+        trigger sync workflows (which create PRs), and view or merge open sync PRs — all from the browser.
+        Each source in the chain has its own status card below.
+      </p>
 
       <div class="um-section">
         <h3>GitHub Token</h3>
-        <p class="um-hint">Needs <code>repo</code> + <code>workflow</code> scopes.
-          <a href="https://github.com/settings/tokens/new?scopes=repo,workflow&description=Convert+Sync" target="_blank" rel="noopener">Create one here ↗</a>
+        <p class="um-hint">
+          A Personal Access Token (PAT) is required to check sync status and trigger workflows on your behalf.
+          It needs the <code>repo</code> and <code>workflow</code> scopes.
+          The token is stored only in your browser's <code>localStorage</code> and is never sent anywhere except the GitHub API.
+        </p>
+        <p class="um-hint" style="margin-top:4px">
+          <a href="https://github.com/settings/tokens" target="_blank" rel="noopener">View your existing tokens ↗</a>
+          &nbsp;·&nbsp;
+          <a href="https://github.com/settings/tokens/new?scopes=repo,workflow&description=Convert+Sync" target="_blank" rel="noopener">Create a new token ↗</a>
         </p>
         <div class="um-token-row">
           <input id="um-token-input" type="password" placeholder="ghp_…" value="${savedToken}" autocomplete="off" spellcheck="false" />
-          <button id="um-token-toggle" class="um-btn-sm">Show</button>
-          <button id="um-token-save" class="um-btn-sm um-btn-accent">Save</button>
-          <button id="um-token-clear" class="um-btn-sm">Clear</button>
+          <button id="um-token-toggle" class="um-btn-sm" title="Show or hide the token value in the input field">Show</button>
+          <button id="um-token-save" class="um-btn-sm um-btn-accent" title="Save this token to localStorage so it persists across page reloads">Save</button>
+          <button id="um-token-clear" class="um-btn-sm" title="Remove the saved token from localStorage">Clear</button>
         </div>
         <p id="um-token-msg" class="um-hide um-ok"></p>
       </div>
@@ -581,8 +613,12 @@ function showUpstreamManager() {
       <div class="um-section">
         <div class="um-section-header">
           <h3>Open Sync PRs</h3>
-          <button id="um-refresh-prs" class="um-btn-sm">Refresh</button>
+          <button id="um-refresh-prs" class="um-btn-sm" title="Reload the list of open PRs from the GitHub API">Refresh</button>
         </div>
+        <p class="um-hint" style="margin-top:4px">
+          PRs created by sync workflows appear here. Review the diff, then merge or close the PR as appropriate.
+          Auto-merged PRs will not appear here since they are merged immediately by the workflow.
+        </p>
         <div class="um-prs-body"><p class="um-hint">PRs created by sync workflows appear here.</p></div>
       </div>
 

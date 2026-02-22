@@ -132,23 +132,16 @@ jobs:
           fi
 
           if [ -n "$FILES" ]; then
-            FILES_SECTION="### All files changed by upstream
-\`\`\`
-$FILES
-\`\`\`
-"
+            FILES_SECTION=$(printf '%s\n```\n%s\n```\n' '### All files changed by upstream' "$FILES")
           else
             FILES_SECTION=""
           fi
 
           if [ "$MERGE_CLEAN" = "false" ] && [ -n "$CONFLICT_FILES" ]; then
-            CONFLICT_SECTION="### ⚠️ Files with conflicts — fork version kept, manual review recommended
-The following files had merge conflicts. Upstream's changes were **discarded in favour of your fork's version**. These are the files you should **manually diff** to check if any valuable upstream changes were lost:
-\`\`\`
-$CONFLICT_FILES
-\`\`\`
-To see exactly what upstream changed in a file, click the **Compare** links in the app's Sync Manager, or view the upstream commits on GitHub.
-"
+            CF_TITLE="### ⚠️ Files with conflicts — fork version kept, manual review recommended"
+            CF_INTRO="The following files had merge conflicts. Upstream's changes were **discarded in favour of your fork's version**. These are the files you should **manually diff** to check if any valuable upstream changes were lost:"
+            CF_FOOTER="To see exactly what upstream changed in a file, click the **Compare** links in the app's Sync Manager, or view the upstream commits on GitHub."
+            CONFLICT_SECTION=$(printf '%s\n%s\n```\n%s\n```\n%s\n' "$CF_TITLE" "$CF_INTRO" "$CONFLICT_FILES" "$CF_FOOTER")
           else
             CONFLICT_SECTION=""
           fi
