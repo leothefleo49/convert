@@ -1424,7 +1424,7 @@ async function buildOptionList () {
 
   // ── Phase 2: load format cache ──
   try {
-    const resp = await fetch("cache.json");
+    const resp = await fetch(`cache.json?t=${Date.now()}`, { cache: "no-store" });
     if (resp.ok) {
       const cacheJSON = await resp.json();
       window.supportedFormatCache = new Map(cacheJSON);
