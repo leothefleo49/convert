@@ -23,6 +23,7 @@ export async function loadHandlers(
     }
   }
 
+  await load("mediaLink",        async () => new (await import("./mediaLink.ts")).default());
   await load("svgTrace",         async () => new (await import("./svgTrace.ts")).default());
   await load("canvasToBlob",     async () => new (await import("./canvasToBlob.ts")).default());
   await load("meyda",            async () => new (await import("./meyda.ts")).default());

@@ -518,7 +518,13 @@ async function _umTriggerSyncForSource(btn: HTMLButtonElement, autoMerge: boolea
     } else {
       const err = await r.json().catch(() => ({ message: r.statusText }));
       btn.textContent = "Failed"; btn.disabled = false;
-      alert(`Failed to trigger workflow: ${err.message}`);
+      let msg = err.message || r.statusText || "Unknown error";
+      if (r.status === 403 || msg.includes("Resource not accessible")) {
+        msg += "\n\nTip: Ensure your Personal Access Token has 'actions: read & write' (or 'workflow' scope) enabled and repository access granted.";
+      } else if (msg.includes("failed to parse workflow") || msg.includes("Unexpected value")) {
+        msg += "\n\nTip: Check for YAML syntax errors in .github/workflows/. Ensure permission keys are valid (e.g. 'actions: write', not 'workflows: write').";
+      }
+      alert(`Failed to trigger workflow: ${msg}`);
     }
   } catch(e: any) {
     btn.textContent = "Error"; btn.disabled = false;
@@ -968,30 +974,10 @@ ui.fileSelectArea.addEventListener("click", (e) => {
 });
 
 /**
- * Validates and stores user selected files. Works for both manual
- * selection and file drag-and-drop.
- * @param event Either a file input element's "change" event,
- * or a "drop" event.
+ * Process selected input files or synthetic media link files.
  */
-const fileSelectHandler = (event: Event) => {
-
-  let inputFiles;
-
-  if (event instanceof DragEvent) {
-    inputFiles = event.dataTransfer?.files;
-    if (inputFiles) event.preventDefault();
-  } else if (event instanceof ClipboardEvent) {
-    inputFiles = event.clipboardData?.files;
-  } else {
-    const target = event.target;
-    if (!(target instanceof HTMLInputElement)) return;
-    inputFiles = target.files;
-  }
-
-  if (!inputFiles) return;
-  const files = Array.from(inputFiles);
+function processSelectedFiles(files: File[]) {
   if (files.length === 0) return;
-
   if (files.some(c => c.type !== files[0].type)) {
     return alert("All input files must be of the same type.");
   }
@@ -1053,7 +1039,37 @@ const fileSelectHandler = (event: Event) => {
   }
 
   filterButtonList(ui.inputList, ui.inputSearch.value);
+}
 
+const fileSelectHandler = (event: Event) => {
+  let inputFiles: FileList | File[] | undefined | null;
+
+  if (event instanceof DragEvent) {
+    inputFiles = event.dataTransfer?.files;
+    if (inputFiles) event.preventDefault();
+  } else if (event instanceof ClipboardEvent) {
+    inputFiles = event.clipboardData?.files;
+    if ((!inputFiles || inputFiles.length === 0) && event.clipboardData) {
+      const text = event.clipboardData.getData("text")?.trim();
+      if (text && text.match(/^https?:\/\//i)) {
+        const domain = text.replace(/^https?:\/\//i, "").split("/")[0];
+        const fileName = `link_${domain.replace(/[^a-z0-9]/gi, "_")}.url`;
+        const blob = new Blob([text], { type: "text/x-url" });
+        const file = new File([blob], fileName, { type: "text/x-url" });
+        processSelectedFiles([file]);
+        return;
+      }
+    }
+  } else {
+    const target = event.target;
+    if (!(target instanceof HTMLInputElement)) return;
+    inputFiles = target.files;
+  }
+
+  if (!inputFiles) return;
+  const files = Array.from(inputFiles);
+  if (files.length === 0) return;
+  processSelectedFiles(files);
 };
 
 // Add the file selection handler to both the file input element and to
@@ -1062,6 +1078,35 @@ ui.fileInput.addEventListener("change", fileSelectHandler);
 window.addEventListener("drop", fileSelectHandler);
 window.addEventListener("dragover", e => e.preventDefault());
 window.addEventListener("paste", fileSelectHandler);
+
+// Wire up the Media URL Link Input bar
+const mediaUrlInput = document.getElementById("media-url-input") as HTMLInputElement | null;
+const loadUrlBtn = document.getElementById("load-url-btn") as HTMLButtonElement | null;
+
+const handleUrlSubmit = () => {
+  if (!mediaUrlInput) return;
+  const urlVal = mediaUrlInput.value.trim();
+  if (!urlVal) return;
+  if (!urlVal.match(/^https?:\/\//i)) {
+    alert("Please enter a valid URL starting with http:// or https://");
+    return;
+  }
+  const domain = urlVal.replace(/^https?:\/\//i, "").split("/")[0];
+  const fileName = `link_${domain.replace(/[^a-z0-9]/gi, "_")}.url`;
+  const blob = new Blob([urlVal], { type: "text/x-url" });
+  const file = new File([blob], fileName, { type: "text/x-url" });
+  processSelectedFiles([file]);
+};
+
+if (loadUrlBtn) loadUrlBtn.addEventListener("click", handleUrlSubmit);
+if (mediaUrlInput) {
+  mediaUrlInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      handleUrlSubmit();
+    }
+  });
+}
 
 /**
  * Display an on-screen popup.
