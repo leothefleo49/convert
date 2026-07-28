@@ -10,13 +10,21 @@ export const Category = {
     AUDIO: "audio",
     ARCHIVE: "archive",
     SPREADSHEET: "spreadsheet",
-    PRESENTATION: "presentation"
+    PRESENTATION: "presentation",
+    URL: "url"
 }
 
 /**
  * Common format definitions which can be used to reduce boilerplate definitions
  */
 const CommonFormats = {
+    URL: new FormatDefinition(
+        "Media Link / URL (YouTube, Instagram, Facebook, etc.)",
+        "url",
+        "url",
+        "text/x-url",
+        [Category.VIDEO, Category.AUDIO, Category.IMAGE, Category.TEXT]
+    ),
     // images
     PNG: new FormatDefinition(
         "Portable Network Graphics",
@@ -152,6 +160,13 @@ const CommonFormats = {
         "mp4",
         "mp4",
         "video/mp4",
+        Category.VIDEO
+    ),
+    WEBM: new FormatDefinition(
+        "WebM Video",
+        "webm",
+        "webm",
+        "video/webm",
         Category.VIDEO
     ),
     // archive

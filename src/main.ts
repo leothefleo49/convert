@@ -520,7 +520,13 @@ async function _umTriggerSyncForSource(btn: HTMLButtonElement, autoMerge: boolea
     } else {
       const err = await r.json().catch(() => ({ message: r.statusText }));
       btn.textContent = "Failed"; btn.disabled = false;
-      alert(`Failed to trigger workflow: ${err.message}`);
+      let msg = err.message || r.statusText || "Unknown error";
+      if (r.status === 403 || msg.includes("Resource not accessible")) {
+        msg += "\n\nTip: Ensure your Personal Access Token has 'actions: read & write' (or 'workflow' scope) enabled and repository access granted.";
+      } else if (msg.includes("failed to parse workflow") || msg.includes("Unexpected value")) {
+        msg += "\n\nTip: Check for YAML syntax errors in .github/workflows/. Ensure permission keys are valid (e.g. 'actions: write', not 'workflows: write').";
+      }
+      alert(`Failed to trigger workflow: ${msg}`);
     }
   } catch(e: any) {
     btn.textContent = "Error"; btn.disabled = false;
@@ -970,30 +976,10 @@ ui.fileSelectArea.addEventListener("click", (e) => {
 });
 
 /**
- * Validates and stores user selected files. Works for both manual
- * selection and file drag-and-drop.
- * @param event Either a file input element's "change" event,
- * or a "drop" event.
+ * Process selected input files or synthetic media link files.
  */
-const fileSelectHandler = (event: Event) => {
-
-  let inputFiles;
-
-  if (event instanceof DragEvent) {
-    inputFiles = event.dataTransfer?.files;
-    if (inputFiles) event.preventDefault();
-  } else if (event instanceof ClipboardEvent) {
-    inputFiles = event.clipboardData?.files;
-  } else {
-    const target = event.target;
-    if (!(target instanceof HTMLInputElement)) return;
-    inputFiles = target.files;
-  }
-
-  if (!inputFiles) return;
-  const files = Array.from(inputFiles);
+function processSelectedFiles(files: File[]) {
   if (files.length === 0) return;
-
   if (files.some(c => c.type !== files[0].type)) {
     return alert("All input files must be of the same type.");
   }
@@ -1067,35 +1053,55 @@ function applySelectedFiles(files: File[]) {
   filterButtonList(ui.inputList, ui.inputSearch.value);
 }
 
+const fileSelectHandler = (event: Event) => {
+  let inputFiles: FileList | File[] | undefined | null;
+
+  if (event instanceof DragEvent) {
+    inputFiles = event.dataTransfer?.files;
+    if (inputFiles) event.preventDefault();
+  } else if (event instanceof ClipboardEvent) {
+    inputFiles = event.clipboardData?.files;
+    if ((!inputFiles || inputFiles.length === 0) && event.clipboardData) {
+      const text = event.clipboardData.getData("text")?.trim();
+      if (text && text.match(/^https?:\/\//i)) {
+        const domain = text.replace(/^https?:\/\//i, "").split("/")[0];
+        const fileName = `link_${domain.replace(/[^a-z0-9]/gi, "_")}.url`;
+        const blob = new Blob([text], { type: "text/x-url" });
+        const file = new File([blob], fileName, { type: "text/x-url" });
+        processSelectedFiles([file]);
+        // Also mirror the URL into the visible link bar for UX.
+        if (ui.linkInput) ui.linkInput.value = text;
+        return;
+      }
+    }
+  } else {
+    const target = event.target;
+    if (!(target instanceof HTMLInputElement)) return;
+    inputFiles = target.files;
+  }
+
+  if (!inputFiles) return;
+  const files = Array.from(inputFiles);
+  if (files.length === 0) return;
+  processSelectedFiles(files);
+};
+
 // Add the file selection handler to both the file input element and to
 // the window as a drag-and-drop event, and to the clipboard paste event.
 ui.fileInput.addEventListener("change", fileSelectHandler);
 window.addEventListener("drop", fileSelectHandler);
 window.addEventListener("dragover", e => e.preventDefault());
-window.addEventListener("paste", (event: ClipboardEvent) => {
-  // If the clipboard contains a URL (no files), feed it into the link bar.
-  const text = event.clipboardData?.getData("text")?.trim();
-  if (text && /^https?:\/\//i.test(text) && !event.clipboardData?.files?.length) {
-    if (ui.linkInput) {
-      ui.linkInput.value = text;
-      event.preventDefault();
-      handleLinkFetch();
-    }
-    return;
-  }
-  fileSelectHandler(event);
-});
+window.addEventListener("paste", fileSelectHandler);
 
 // ──── Link / URL fetch bar ────
 
-const URL_MIME = "text/uri-list";
+const URL_MIME = "text/x-url"; // matches CommonFormats.URL
 
 /**
  * Handle a URL typed or pasted into the link bar.
- * Wraps the URL in a virtual File with the `text/uri-list` MIME so the
- * mediaLink handler can pick it up. If the URL points at a direct media
- * file, we instead fetch it now and treat it as a real file so it can be
- * routed through any converter (PNG→JPEG, MP4→GIF, …).
+ * Wraps the URL in a virtual File with the `text/x-url` MIME so the
+ * mediaLink handler can pick it up, then runs the shared selection logic
+ * (preview + input-format auto-detection).
  */
 async function handleLinkFetch() {
   const raw = (ui.linkInput.value || "").trim();
@@ -1113,27 +1119,11 @@ async function handleLinkFetch() {
   fetchBtn.textContent = "Fetching…";
 
   try {
-    // Build a virtual File containing the URL. The mediaLink handler reads the
-    // URL out of the text and resolves it. We attach a filename that reflects
-    // the host so the UI stays readable.
     const host = raw.replace(/^https?:\/\//, "").split("/")[0] || "link";
-    const safeName = `${host.replace(/[^a-z0-9.-]/gi, "_")}.url.txt`;
-    const file = new File([raw], safeName, { type: URL_MIME });
-    applySelectedFiles([file]);
-
-    // Auto-select the "Media / Web Link (URL)" input format if present.
-    const urlButton = Array.from(ui.inputList.children).find(b =>
-      b instanceof HTMLButtonElement && b.getAttribute("mime-type") === URL_MIME
-    ) as HTMLButtonElement | undefined;
-    if (urlButton) {
-      urlButton.click();
-      ui.inputSearch.value = URL_MIME;
-      filterButtonList(ui.inputList, URL_MIME);
-    } else {
-      ui.inputSearch.value = "url";
-      filterButtonList(ui.inputList, "url");
-    }
-
+    const safeName = `link_${host.replace(/[^a-z0-9]/gi, "_")}.url`;
+    const blob = new Blob([raw], { type: URL_MIME });
+    const file = new File([blob], safeName, { type: URL_MIME });
+    processSelectedFiles([file]);
     logActivity(`Link loaded: ${raw}`);
   } catch (e) {
     console.error(e);
@@ -1469,7 +1459,7 @@ async function buildOptionList () {
 
   // ── Phase 2: load format cache ──
   try {
-    const resp = await fetch("cache.json");
+    const resp = await fetch(`cache.json?t=${Date.now()}`, { cache: "no-store" });
     if (resp.ok) {
       const cacheJSON = await resp.json();
       window.supportedFormatCache = new Map(cacheJSON);
