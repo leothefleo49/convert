@@ -326,6 +326,107 @@ body {
   text-transform: uppercase;
 }
 
+/* ──── Link / URL paste bar ──── */
+#link-input-wrap {
+  width: 100%;
+  max-width: 640px;
+  margin-top: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  /* Prevent the input from ever being cut off, even on tiny screens */
+  box-sizing: border-box;
+  padding: 0 4px;
+}
+#link-input-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg-input, var(--bg-primary));
+  border: 1.5px solid var(--border);
+  border-radius: 999px;
+  padding: 6px 6px 6px 14px;
+  transition: border-color var(--transition), box-shadow var(--transition);
+  flex-wrap: nowrap;
+  min-width: 0;             /* allow children to shrink within flex */
+}
+#link-input-row:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-dim, rgba(108, 92, 231, 0.15));
+}
+#link-input-icon {
+  color: var(--text-muted);
+  flex: 0 0 auto;
+}
+#link-input {
+  flex: 1 1 auto;
+  min-width: 0;             /* lets the input shrink instead of overflowing */
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--text);
+  font-size: 0.95rem;
+  padding: 8px 4px;
+  font-family: inherit;
+}
+#link-input::placeholder {
+  color: var(--text-muted);
+  opacity: 0.85;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#link-fetch-btn {
+  flex: 0 0 auto;
+  border: none;
+  background: var(--accent);
+  color: #fff;
+  font-weight: 600;
+  font-size: 0.85rem;
+  padding: 8px 16px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: opacity var(--transition), transform var(--transition);
+  white-space: nowrap;
+}
+#link-fetch-btn:hover:not(:disabled) { opacity: 0.9; transform: translateY(-1px); }
+#link-fetch-btn:disabled { opacity: 0.6; cursor: progress; }
+#link-hint {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  text-align: center;
+  line-height: 1.4;
+  padding: 0 4px;
+}
+#file-area.has-file #link-input-wrap {
+  /* keep the link bar usable after a file is selected too */
+  display: flex;
+}
+
+/* On very small screens, make the input row stack nicely without clipping */
+@media only screen and (max-width: 480px) {
+  #link-input-row {
+    flex-wrap: wrap;
+    border-radius: 16px;
+    padding: 8px;
+  }
+  #link-input {
+    flex: 1 1 100%;
+    min-width: 100%;
+  }
+  #link-fetch-btn {
+    flex: 1 1 100%;
+    padding: 10px 16px;
+  }
+  #link-input-icon { display: none; }
+  #link-hint { font-size: 0.72rem; }
+}
+@media only screen and (max-width: 800px) {
+  #link-input-wrap { max-width: 100%; }
+  #link-input::placeholder { white-space: normal; }
+}
+
 /* ──── Preview Panel ──── */
 #preview-panel {
   margin: 0 24px 16px;

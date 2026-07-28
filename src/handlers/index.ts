@@ -82,6 +82,8 @@ export async function loadHandlers(
   await load("textToPdf",        async () => new (await import("./textToPdf.ts")).default());
   await load("textFormats",      async () => new (await import("./textFormats.ts")).default());
   await load("textStats",        async () => new (await import("./textStats.ts")).default());
+  await load("mediaLink",        async () => new (await import("./mediaLink.ts")).default());
+  await load("textCase",         async () => new (await import("./textCase.ts")).default());
 
   return all;
 }

@@ -98,7 +98,7 @@
     <button id="copy-errors-btn" class="error-copy-btn" title="Copy all errors to clipboard">Copy errors</button>
   </div>
 
-  <!-- File drop zone -->
+  <!-- File drop zone + link/text input -->
   <div id="file-area">
     <div id="drop-icon">
       <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
@@ -109,6 +109,21 @@
     </div>
     <h2>Drop your file here</h2>
     <p id="drop-hint-text">or click to browse</p>
+
+    <!-- URL / text paste bar -->
+    <div id="link-input-wrap">
+      <div id="link-input-row">
+        <svg id="link-input-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+          <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+        </svg>
+        <input id="link-input" type="text" autocomplete="off" spellcheck="false"
+          placeholder="…or paste a link — YouTube, Instagram, TikTok, Twitch, Discord, image, video, anything">
+        <button id="link-fetch-btn" title="Fetch this link">Fetch</button>
+      </div>
+      <p id="link-hint">Tip: Ctrl/Cmd+V anywhere also works. Direct media URLs are downloaded as files; social links become metadata, embeds, thumbnails &amp; more.</p>
+    </div>
+
     <div id="file-info" class="hidden">
       <span id="file-name"></span>
       <span id="file-size"></span>

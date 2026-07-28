@@ -118,6 +118,8 @@ const ui = {
   fileTypeBadge: document.querySelector("#file-type-badge") as HTMLSpanElement,
   modeIndicator: document.querySelector("#mode-indicator") as HTMLSpanElement,
   previewBtn: document.querySelector("#preview-btn") as HTMLButtonElement,
+  linkInput: document.querySelector("#link-input") as HTMLInputElement,
+  linkFetchBtn: document.querySelector("#link-fetch-btn") as HTMLButtonElement,
 };
 
 /** Current contributor filter: "all", "new", or "original" */
@@ -996,6 +998,16 @@ const fileSelectHandler = (event: Event) => {
     return alert("All input files must be of the same type.");
   }
   files.sort((a, b) => a.name === b.name ? 0 : (a.name < b.name ? -1 : 1));
+  applySelectedFiles(files);
+};
+
+/**
+ * Shared post-selection logic: updates the drop zone UI, file info bar,
+ * preview, and auto-selects the matching input format button.
+ * Reused by both the file picker / drag-drop / paste handler and the
+ * URL fetch bar.
+ */
+function applySelectedFiles(files: File[]) {
   selectedFiles = files;
   logActivity(`File selected: ${files.map(f => f.name).join(", ")} (${files.length > 1 ? files.length + " files, " : ""}${files[0].type || files[0].name.split(".").pop()?.toUpperCase() || "unknown type"})`);
 
@@ -1004,8 +1016,8 @@ const fileSelectHandler = (event: Event) => {
   if (ui.dropIcon) ui.dropIcon.style.display = "none";
   const h2 = ui.fileSelectArea.querySelector("h2");
   if (h2) h2.textContent = files.length > 1 ? `${files[0].name} ... and ${files.length - 1} more` : files[0].name;
-  const p = ui.fileSelectArea.querySelector("p");
-  if (p) p.style.display = "none";
+  const p = ui.fileSelectArea.querySelector("p#drop-hint-text");
+  if (p instanceof HTMLElement) p.style.display = "none";
 
   // Show file info badges
   if (ui.fileInfo) {
@@ -1053,15 +1065,93 @@ const fileSelectHandler = (event: Event) => {
   }
 
   filterButtonList(ui.inputList, ui.inputSearch.value);
-
-};
+}
 
 // Add the file selection handler to both the file input element and to
 // the window as a drag-and-drop event, and to the clipboard paste event.
 ui.fileInput.addEventListener("change", fileSelectHandler);
 window.addEventListener("drop", fileSelectHandler);
 window.addEventListener("dragover", e => e.preventDefault());
-window.addEventListener("paste", fileSelectHandler);
+window.addEventListener("paste", (event: ClipboardEvent) => {
+  // If the clipboard contains a URL (no files), feed it into the link bar.
+  const text = event.clipboardData?.getData("text")?.trim();
+  if (text && /^https?:\/\//i.test(text) && !event.clipboardData?.files?.length) {
+    if (ui.linkInput) {
+      ui.linkInput.value = text;
+      event.preventDefault();
+      handleLinkFetch();
+    }
+    return;
+  }
+  fileSelectHandler(event);
+});
+
+// ──── Link / URL fetch bar ────
+
+const URL_MIME = "text/uri-list";
+
+/**
+ * Handle a URL typed or pasted into the link bar.
+ * Wraps the URL in a virtual File with the `text/uri-list` MIME so the
+ * mediaLink handler can pick it up. If the URL points at a direct media
+ * file, we instead fetch it now and treat it as a real file so it can be
+ * routed through any converter (PNG→JPEG, MP4→GIF, …).
+ */
+async function handleLinkFetch() {
+  const raw = (ui.linkInput.value || "").trim();
+  if (!raw) return;
+  if (!/^https?:\/\//i.test(raw)) {
+    window.showPopup(`<h2>That doesn't look like a link</h2>
+      <p>Enter a full URL starting with <code>http://</code> or <code>https://</code>.</p>
+      <button onclick="window.hidePopup()">OK</button>`);
+    return;
+  }
+
+  const fetchBtn = ui.linkFetchBtn;
+  const originalBtnText = fetchBtn.textContent;
+  fetchBtn.disabled = true;
+  fetchBtn.textContent = "Fetching…";
+
+  try {
+    // Build a virtual File containing the URL. The mediaLink handler reads the
+    // URL out of the text and resolves it. We attach a filename that reflects
+    // the host so the UI stays readable.
+    const host = raw.replace(/^https?:\/\//, "").split("/")[0] || "link";
+    const safeName = `${host.replace(/[^a-z0-9.-]/gi, "_")}.url.txt`;
+    const file = new File([raw], safeName, { type: URL_MIME });
+    applySelectedFiles([file]);
+
+    // Auto-select the "Media / Web Link (URL)" input format if present.
+    const urlButton = Array.from(ui.inputList.children).find(b =>
+      b instanceof HTMLButtonElement && b.getAttribute("mime-type") === URL_MIME
+    ) as HTMLButtonElement | undefined;
+    if (urlButton) {
+      urlButton.click();
+      ui.inputSearch.value = URL_MIME;
+      filterButtonList(ui.inputList, URL_MIME);
+    } else {
+      ui.inputSearch.value = "url";
+      filterButtonList(ui.inputList, "url");
+    }
+
+    logActivity(`Link loaded: ${raw}`);
+  } catch (e) {
+    console.error(e);
+    window.showPopup(`<h2>Could not load link</h2>
+      <p>${(e as Error)?.message || e}</p>
+      <button onclick="window.hidePopup()">OK</button>`);
+  } finally {
+    fetchBtn.disabled = false;
+    fetchBtn.textContent = originalBtnText;
+  }
+}
+
+if (ui.linkFetchBtn) ui.linkFetchBtn.addEventListener("click", handleLinkFetch);
+if (ui.linkInput) {
+  ui.linkInput.addEventListener("keydown", (e: KeyboardEvent) => {
+    if (e.key === "Enter") { e.preventDefault(); handleLinkFetch(); }
+  });
+}
 
 /**
  * Display an on-screen popup.

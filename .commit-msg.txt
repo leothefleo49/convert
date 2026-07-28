@@ -1,0 +1,27 @@
+feat: media link fetcher + paste bar UI + text case conversions
+
+- Add mediaLink handler: paste any URL (YouTube/Shorts/Music, Instagram,
+  Facebook, Messenger, Twitch, Discord, TikTok, Vimeo, SoundCloud, Spotify,
+  Reddit, Twitter/X, Imgur, Gfycat, Streamable, Bluesky, Pinterest, Loom,
+  GitHub, or direct media URLs) and convert to:
+    * downloaded media file (direct URLs)
+    * link metadata JSON (oEmbed + noembed + HTML meta fallback)
+    * HTML embed snippet (native iframes for YT/Vimeo/Twitch/Spotify/SoundCloud)
+    * Markdown link card with thumbnail
+    * thumbnail PNG
+  Fetches run through a rotating CORS-proxy chain (allorigins/corsproxy/
+  thingproxy) so it works from a static client-side app.
+
+- Add URL/text paste bar to the drop zone with smooth, fully responsive
+  styling that never clips on small screens (stacks vertically < 480px,
+  pill-shaped input with focus ring, Enter or Fetch button to submit).
+  Global Ctrl/Cmd+V of a URL auto-fills the bar.
+
+- Refactor file-selection post-processing into applySelectedFiles() so the
+  URL bar can reuse the same format-auto-detection + preview logic.
+
+- Add textCase handler: camelCase, PascalCase, snake_case, kebab-case,
+  CONSTANT_CASE, Title Case, Sentence case, URL slug, reverse text
+  (emoji-safe), hex dump, UPPERCASE, lowercase.
+
+- Add CONVERSATION_LOG.md per project conventions.
