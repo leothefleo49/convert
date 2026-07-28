@@ -37,7 +37,7 @@ jobs:
         run: npm run build
 
       - name: Generate cache
-        run: node buildCache.js dist/cache.json
+        run: node buildCache.js dist/cache.json || true
 
       - name: Upload Pages artifact
         if: github.event_name == 'push'
