@@ -3,3 +3,4 @@ node_modules
 start.sh
 dist
 cache.json
+.commit-msg.txt
