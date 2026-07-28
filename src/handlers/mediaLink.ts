@@ -107,6 +107,8 @@ const MEDIA_EXT: Record<string, { mime: string }> = {
 
 // ─── Handler ─────────────────────────────────────────────────────────────────
 
+interface MediaFileResult { bytes: Uint8Array; mime: string; ext: string }
+
 export default class MediaLinkHandler implements FormatHandler {
   public name = "mediaLink";
   public contributor = "leothefleo49";
@@ -281,50 +283,144 @@ ${thumb ? `  <img src="${this.escapeAttr(thumb)}" alt="" style="display:block;wi
   }
 
   // ── Media download via Cobalt / Invidious / Piped ─────────────────────────
-  // (adapted from the previous remote implementation)
+  //
+  // How this works (the "fastdl workaround"):
+  // fastdl.app is a server-side fetcher — it pulls Instagram's CDN from its
+  // own backend, so browsers never hit CORS. We can't run a backend from a
+  // static app, BUT the open-source equivalent of fastdl is Cobalt, and many
+  // people run Cobalt instances with Cloudflare Turnstile DISABLED — which
+  // means they accept direct POST requests from any browser origin.
+  //
+  // We prioritise those Turnstile-disabled community instances (best score on
+  // cobalt.directory right now), fall back to the official imput.net ones,
+  // and route everything through the CORS-proxy chain as a last resort.
+  //
+  // The current Cobalt API (v11) is:  POST <instance-root>/
+  //   Headers:  Accept: application/json, Content-Type: application/json
+  //   Body:     { "url": "...", "videoQuality": "max", ... }
+  //   Response: { status: "redirect"|"tunnel"|"picker"|"error", url|picker }
+  //
+  // Picker (Instagram carousel / TikTok slideshow) returns multiple files;
+  // we grab the first (highest-quality) item by default.
+
+  /** Instances prioritised by Turnstile-disabled + score from cobalt.directory. */
+  private static readonly COBALT_INSTANCES: string[] = [
+    // Community instances with Turnstile DISABLED (callable from browser).
+    "https://cobaltapi.kittycat.boo",
+    "https://dog.kittycat.boo",
+    "https://api.cobalt.liubquanti.click",
+    "https://cobaltapi.squair.xyz",
+    "https://rue-cobalt.xenon.zone",
+    "https://cobaltapi.cjs.nz",
+    // High-score Turnstile-enabled instances (may still accept plain POSTs).
+    "https://lime.clxxped.lol",
+    "https://grapefruit.clxxped.lol",
+    "https://melon.clxxped.lol",
+    "https://nuko-c.meowing.de",
+    "https://cobalt.omega.wolfy.love",
+    "https://kitty.tame.gg",
+    // Official imput.net servers (highest uptime, always Turnstile-protected
+    // — included as last-ditch attempt in case CORS/proxy happens to satisfy).
+    "https://kityune.imput.net",
+    "https://nachos.imput.net",
+    "https://sunny.imput.net",
+  ];
 
   private async downloadViaCobalt(
     targetUrl: string, isAudioOnly: boolean
-  ): Promise<{ bytes: Uint8Array; mime: string; ext: string } | null> {
-    const cobaltInstances = [
-      "https://api.cobalt.tools",
-      "https://cobalt.stream.gdn",
-      "https://co.wuk.sh"
-    ];
-    for (const instance of cobaltInstances) {
+  ): Promise<MediaFileResult | MediaFileResult[] | null> {
+    const body = JSON.stringify({
+      url: targetUrl,
+      downloadMode: isAudioOnly ? "audio" : "auto",
+      videoQuality: "max",
+      audioFormat: "mp3",
+      filenameStyle: "basic",
+      alwaysProxy: false,
+    });
+    const headers = { "Accept": "application/json", "Content-Type": "application/json" };
+
+    for (const instance of MediaLinkHandler.COBALT_INSTANCES) {
       try {
-        const resp = await fetch(`${instance}/api/json`, {
-          method: "POST",
-          headers: { "Accept": "application/json", "Content-Type": "application/json" },
-          body: JSON.stringify({
-            url: targetUrl,
-            downloadMode: isAudioOnly ? "audio" : "video",
-            videoQuality: "max",
-            audioFormat: "mp3"
-          })
-        });
-        if (!resp.ok) continue;
-        const data = await resp.json();
-        let mediaDirectUrl: string | null = null;
-        if (data.status === "redirect" || data.status === "tunnel" || data.status === "stream") {
-          mediaDirectUrl = data.url;
-        } else if (data.status === "picker" && Array.isArray(data.picker) && data.picker.length > 0) {
-          mediaDirectUrl = data.picker[0].url;
+        // Try direct fetch first. Many Turnstile-disabled instances allow
+        // cross-origin POSTs directly (they set Access-Control-Allow-Origin: *).
+        let resp = await this.cobaltPost(instance, body, headers, /*useProxy*/false);
+        // If the direct POST was blocked by CORS, retry through the proxy chain.
+        if (!resp) {
+          resp = await this.cobaltPost(instance, body, headers, /*useProxy*/true);
         }
-        if (mediaDirectUrl) {
-          const mediaResp = await fetch(mediaDirectUrl);
-          if (mediaResp.ok) {
-            const buf = await mediaResp.arrayBuffer();
-            const mime = mediaResp.headers.get("content-type") || (isAudioOnly ? "audio/mpeg" : "video/mp4");
-            const ext = isAudioOnly ? "mp3" : "mp4";
-            return { bytes: new Uint8Array(buf), mime, ext };
+        if (!resp) continue;
+
+        const data = await resp.json();
+        if (!data || data.status === "error") {
+          console.warn(`[mediaLink] Cobalt ${instance} error:`, data?.error?.code || data?.error);
+          continue;
+        }
+
+        // Build the list of media URLs to fetch from the response.
+        const items: { url: string; mime: string; ext: string }[] = [];
+
+        if (data.status === "redirect" || data.status === "tunnel" || data.status === "stream") {
+          const m = isAudioOnly ? "audio/mpeg" : "video/mp4";
+          items.push({ url: data.url, mime: m, ext: isAudioOnly ? "mp3" : "mp4" });
+        } else if (data.status === "picker" && Array.isArray(data.picker) && data.picker.length > 0) {
+          // Instagram carousel / TikTok slideshow: return EVERY item so the
+          // user gets all photos/videos, not just the first one.
+          for (const item of data.picker) {
+            if (!item?.url) continue;
+            const isPhoto = item.type === "photo" || /\.(png|jpe?g|webp)$/i.test(item.url);
+            items.push({
+              url: item.url,
+              mime: isPhoto ? "image/jpeg" : "video/mp4",
+              ext:  isPhoto ? (extFromUrl(item.url) || "jpg") : "mp4"
+            });
           }
+        }
+
+        if (items.length === 0) continue;
+
+        // Download each media file. Cobalt's URLs are usually CORS-friendly;
+        // if not, fall back through the proxy chain.
+        const downloaded: MediaFileResult[] = [];
+        for (const item of items) {
+          let mediaResp = await fetch(item.url).catch(() => null);
+          if (!mediaResp || !mediaResp.ok) {
+            mediaResp = await proxiedFetch(item.url).catch(() => null);
+          }
+          if (mediaResp && mediaResp.ok) {
+            const buf = await mediaResp.arrayBuffer();
+            const contentType = mediaResp.headers.get("content-type") || "";
+            let mime = item.mime, ext = item.ext;
+            if (contentType.startsWith("video/"))      { mime = contentType.split(";")[0]; ext = "mp4"; }
+            else if (contentType.startsWith("audio/")) { mime = contentType.split(";")[0]; ext = "mp3"; }
+            else if (contentType.startsWith("image/")) { mime = contentType.split(";")[0]; ext = extFromUrl(item.url) || "jpg"; }
+            downloaded.push({ bytes: new Uint8Array(buf), mime, ext });
+          }
+        }
+
+        if (downloaded.length > 0) {
+          return downloaded.length === 1 ? downloaded[0] : downloaded;
         }
       } catch (e) {
         console.warn(`[mediaLink] Cobalt instance ${instance} failed:`, e);
       }
     }
     return null;
+  }
+
+  /** POST to a Cobalt instance, optionally through the CORS-proxy chain. */
+  private async cobaltPost(
+    instance: string, body: string, headers: Record<string, string>, useProxy: boolean
+  ): Promise<Response | null> {
+    const endpoint = instance.endsWith("/") ? instance : instance + "/";
+    try {
+      const resp = useProxy
+        ? await proxiedFetch(endpoint, { method: "POST", headers, body })
+        : await fetch(endpoint, { method: "POST", headers, body });
+      if (resp.ok) return resp;
+      return null;
+    } catch {
+      return null;
+    }
   }
 
   private async downloadYouTubeFallback(
@@ -486,7 +582,7 @@ ${thumb ? `  <img src="${this.escapeAttr(thumb)}" alt="" style="display:block;wi
       const isImageTarget = outputFormat.mime.startsWith("image/");
       const isVideoTarget = outputFormat.mime.startsWith("video/");
 
-      let mediaResult: { bytes: Uint8Array; mime: string; ext: string } | null = null;
+      let mediaResult: MediaFileResult | MediaFileResult[] | null = null;
 
       // Direct media URL? Fetch the binary through the CORS proxy chain.
       const ext = extFromUrl(url);
@@ -511,11 +607,15 @@ ${thumb ? `  <img src="${this.escapeAttr(thumb)}" alt="" style="display:block;wi
         }
       }
 
-      if (isImageTarget) {
-        mediaResult = await this.fetchThumbnail(url);
+      if (isImageTarget && !mediaResult) {
+        // For an image target on a social post (e.g. Instagram photo),
+        // try Cobalt first — it returns the real photo, not just the
+        // preview thumbnail. Fall back to the thumbnail if Cobalt fails.
+        mediaResult = await this.downloadViaCobalt(url, false);
+        if (!mediaResult) mediaResult = await this.fetchThumbnail(url);
       }
 
-      if (!mediaResult && (isVideoTarget || isAudioTarget || isImageTarget)) {
+      if (!mediaResult && (isVideoTarget || isAudioTarget)) {
         // Try Cobalt API first — works for many social platforms.
         mediaResult = await this.downloadViaCobalt(url, isAudioTarget);
         if (!mediaResult) {
@@ -541,19 +641,27 @@ ${thumb ? `  <img src="${this.escapeAttr(thumb)}" alt="" style="display:block;wi
         }
       }
 
-      if (!mediaResult || mediaResult.bytes.length === 0) {
+      // Normalize to an array of results (Cobalt picker may return multiple).
+      const mediaList: MediaFileResult[] = mediaResult
+        ? (Array.isArray(mediaResult) ? mediaResult : [mediaResult])
+        : [];
+
+      if (mediaList.length === 0 || mediaList.some(m => m.bytes.length === 0)) {
         throw new Error(
           `Unable to download media from link: ${url}\n` +
           `The post/video may be private, the platform may be blocking automated access, ` +
-          `or all download services may be rate-limited.\n` +
+          `or all Cobalt download services may be rate-limited right now.\n` +
           `Try one of the other outputs instead: Link Metadata (JSON), HTML Embed Snippet, ` +
           `Markdown Link Card, or Thumbnail Image. ` +
           `For the actual video/audio file, a desktop tool like yt-dlp is more reliable.`
         );
       }
 
-      const outName = `${file.name.replace(/\.[^/.]+$/, "") || "downloaded_media"}.${mediaResult.ext}`;
-      results.push({ name: outName, bytes: mediaResult.bytes });
+      const baseName = file.name.replace(/\.[^/.]+$/, "") || "downloaded_media";
+      mediaList.forEach((m, i) => {
+        const suffix = mediaList.length > 1 ? `_${i + 1}` : "";
+        results.push({ name: `${baseName}${suffix}.${m.ext}`, bytes: m.bytes });
+      });
     }
 
     return results;

@@ -1116,7 +1116,7 @@ async function handleLinkFetch() {
   const fetchBtn = ui.linkFetchBtn;
   const originalBtnText = fetchBtn.textContent;
   fetchBtn.disabled = true;
-  fetchBtn.textContent = "Fetching…";
+  fetchBtn.textContent = "Loading…";
 
   try {
     const host = raw.replace(/^https?:\/\//, "").split("/")[0] || "link";
