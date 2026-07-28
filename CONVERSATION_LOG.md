@@ -19,4 +19,8 @@ Append-only. Never delete entries.
 - Mode clarified: **Personal mode** (flexible, not full Play Store/dev-tool/auto-update machinery).
 - Media approach clarified: **CORS proxy + oEmbed** for client-side fetching where possible.
 
+### Resolution notes (added during work)
+- Discovered a parallel session had already pushed a `mediaLink` handler + URL input UI to `origin/master`. Merged both approaches into one handler: kept Cobalt/Invidious/Piped download backends (better for YouTube/TikTok social media) AND added the CORS-proxy metadata/embed/markdown/thumbnail outputs. Unified the two duplicate URL input bars into the single integrated, responsive paste bar in the drop zone. Added `textCase` handler. Removed stray deploy `.ps1` scripts.
+- Build passes (`tsc --noEmit` + `vite build`). Pushed as commit `ebc3836`.
+
 ---
