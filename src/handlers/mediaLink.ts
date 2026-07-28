@@ -10,6 +10,8 @@ export default class MediaLinkHandler implements FormatHandler {
     CommonFormats.URL.supported("url", true, false),
     CommonFormats.TEXT.supported("text", true, false),
     CommonFormats.MP4.supported("mp4", false, true),
+    CommonFormats.WEBM.supported("webm", false, true),
+    CommonFormats.GIF.supported("gif", false, true),
     CommonFormats.MP3.supported("mp3", false, true),
     CommonFormats.WAV.supported("wav", false, true),
     CommonFormats.PNG.supported("png", false, true),

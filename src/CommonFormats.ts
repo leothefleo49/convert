@@ -162,6 +162,13 @@ const CommonFormats = {
         "video/mp4",
         Category.VIDEO
     ),
+    WEBM: new FormatDefinition(
+        "WebM Video",
+        "webm",
+        "webm",
+        "video/webm",
+        Category.VIDEO
+    ),
     // archive
     ZIP: new FormatDefinition(
         "ZIP Archive",
