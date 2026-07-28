@@ -1,0 +1,2 @@
+import{C as o}from"./CommonFormats-B8gJ-G0w.js";class p{name="textToSH";supportedFormats=[o.TEXT.supported("txt",!0,!1,!0),o.SH.supported("sh",!1,!0,!0)];ready=!1;async init(){this.ready=!0}async doConvert(n,s,e){const t=[];for(const r of n){if(s.internal!=="txt"||e.internal!=="sh")throw new Error("Invalid output format.");let l=`#!/bin/sh
+echo "${new TextDecoder().decode(r.bytes).replaceAll("\\","\\\\").replaceAll('"','\\"')}"`;const a=r.name.split(".").slice(0,-1).join(".")+"."+e.extension;t.push({bytes:new TextEncoder().encode(l),name:a})}return t}}export{p as default};

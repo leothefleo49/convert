@@ -1,0 +1,6 @@
+class y{name="cronParser";contributor="leothefleo49";ready=!0;supportedFormats=[{name:"Cron Expression",format:"cron",extension:"cron",mime:"text/x-cron",from:!0,to:!1,internal:"cron",category:"data",lossless:!0},{name:"Human-Readable Cron",format:"cron-human",extension:"txt",mime:"text/plain",from:!1,to:!0,internal:"cron-human",category:"data",lossless:!1}];async init(){this.ready=!0}parseCron(a){const c=a.trim().split(/\s+/);if(c.length<5)throw new Error("Invalid cron expression. Expected at least 5 parts.");const[u,o,i,r,l]=c,t=(e,n)=>{if(e==="*")return`every ${n}`;if(e.includes("/")){const[s,m]=e.split("/");return`every ${m} ${n}s starting from ${s==="*"?"0":s}`}if(e.includes("-")){const[s,m]=e.split("-");return`every ${n} from ${s} through ${m}`}return e.includes(",")?`at ${n}s ${e.replace(/,/g,", ")}`:`at ${n} ${e}`},d=t(u,"minute"),h=t(o,"hour"),f=t(i,"day of the month"),$=t(r,"month"),x=t(l,"day of the week");return`This cron expression runs:
+- ${d}
+- ${h}
+- ${f}
+- ${$}
+- ${x}`}async doConvert(a,c,u){return a.map(o=>{const i=new TextDecoder().decode(o.bytes).trim();try{const r=this.parseCron(i);return{name:`${o.name.replace(/\.[^.]+$/,"")}_explained.txt`,bytes:new TextEncoder().encode(r)}}catch(r){throw new Error("Failed to parse cron: "+(r instanceof Error?r.message:String(r)))}})}}export{y as default};
